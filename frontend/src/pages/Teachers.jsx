@@ -1,0 +1,462 @@
+import React, { useState, useEffect, useCallback } from "react";
+import {
+  Table,
+  Button,
+  Form,
+  InputGroup,
+  Row,
+  Col,
+  Card,
+  Modal,
+  Alert,
+  Spinner,
+  Badge,
+  Pagination,
+} from "react-bootstrap";
+import { useNavigate } from "react-router-dom";
+import api from "../services/api";
+
+const Teachers = () => {
+  const [teachers, setTeachers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [selectedTeacher, setSelectedTeacher] = useState(null);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [formData, setFormData] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
+    qualification: "",
+    specialization: "",
+    department: "",
+    joiningDate: "",
+  });
+
+  const navigate = useNavigate();
+
+  // Wrap fetchTeachers in useCallback to include in dependencies
+  const fetchTeachers = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await api.get(
+        `/teachers?page=${page}&limit=10&search=${search}`,
+      );
+      setTeachers(response.data.data || []);
+      setTotalPages(response.data.pagination?.pages || 1);
+      setError(""); // Clear any previous errors
+    } catch (err) {
+      console.error("Error fetching teachers:", err);
+      setError("Failed to load teachers");
+    } finally {
+      setLoading(false);
+    }
+  }, [page, search]); // Add dependencies
+
+  useEffect(() => {
+    fetchTeachers();
+  }, [fetchTeachers]); // Now fetchTeachers is stable and can be included
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    setPage(1);
+    // fetchTeachers will be called by useEffect when page/search changes
+  };
+
+  const handleAddTeacher = async () => {
+    try {
+      // First create user account
+      const userResponse = await api.post("/auth/register", {
+        username: formData.email.split("@")[0],
+        email: formData.email,
+        password: "teacher123", // Default password
+        role: "teacher",
+      });
+
+      // Then create teacher profile
+      await api.post("/teachers", {
+        userId: userResponse.data.user.id,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        qualification: formData.qualification,
+        specialization: formData.specialization.split(",").map((s) => s.trim()),
+        contactNumber: formData.phone,
+        department: formData.department,
+        joiningDate: formData.joiningDate,
+      });
+
+      setSuccess("Teacher added successfully");
+      setShowAddModal(false);
+      resetForm();
+      fetchTeachers(); // Refresh the list
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to add teacher");
+    }
+  };
+
+  const handleDeleteTeacher = async () => {
+    try {
+      await api.delete(`/teachers/${selectedTeacher._id}`);
+      setSuccess("Teacher deleted successfully");
+      setShowDeleteModal(false);
+      fetchTeachers(); // Refresh the list
+    } catch {
+      setError("Failed to delete teacher");
+    }
+  };
+
+  const resetForm = () => {
+    setFormData({
+      firstName: "",
+      lastName: "",
+      email: "",
+      phone: "",
+      qualification: "",
+      specialization: "",
+      department: "",
+      joiningDate: "",
+    });
+  };
+
+  const getStatusBadge = (status) => {
+    const statusMap = {
+      active: "success",
+      inactive: "secondary",
+      "on-leave": "warning",
+    };
+    return <Badge bg={statusMap[status] || "secondary"}>{status}</Badge>;
+  };
+
+  return (
+    <div className="container-fluid py-3">
+      <div className="d-flex justify-content-between align-items-center mb-4">
+        <h2>
+          <i className="bi bi-person-badge me-2"></i>
+          Teacher Management
+        </h2>
+        <Button variant="primary" onClick={() => setShowAddModal(true)}>
+          <i className="bi bi-plus-circle me-2"></i>
+          Add New Teacher
+        </Button>
+      </div>
+
+      {error && (
+        <Alert variant="danger" onClose={() => setError("")} dismissible>
+          {error}
+        </Alert>
+      )}
+
+      {success && (
+        <Alert variant="success" onClose={() => setSuccess("")} dismissible>
+          {success}
+        </Alert>
+      )}
+
+      <Card className="shadow-sm mb-4">
+        <Card.Body>
+          <Form onSubmit={handleSearch}>
+            <Row className="g-3">
+              <Col md={8}>
+                <InputGroup>
+                  <InputGroup.Text>
+                    <i className="bi bi-search"></i>
+                  </InputGroup.Text>
+                  <Form.Control
+                    type="text"
+                    placeholder="Search by name, teacher ID, or department"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
+                </InputGroup>
+              </Col>
+              <Col md={4}>
+                <Button
+                  type="submit"
+                  variant="outline-primary"
+                  className="w-100"
+                >
+                  Search
+                </Button>
+              </Col>
+            </Row>
+          </Form>
+        </Card.Body>
+      </Card>
+
+      <Card className="shadow-sm">
+        <Card.Body>
+          {loading ? (
+            <div className="text-center py-5">
+              <Spinner animation="border" variant="primary" />
+              <p className="mt-3">Loading teachers...</p>
+            </div>
+          ) : (
+            <>
+              <Table hover responsive>
+                <thead>
+                  <tr>
+                    <th>Teacher ID</th>
+                    <th>Name</th>
+                    <th>Department</th>
+                    <th>Qualification</th>
+                    <th>Contact</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {teachers.map((teacher) => (
+                    <tr key={teacher._id}>
+                      <td>{teacher.teacherId}</td>
+                      <td>
+                        {teacher.firstName} {teacher.lastName}
+                      </td>
+                      <td>{teacher.department}</td>
+                      <td>{teacher.qualification}</td>
+                      <td>{teacher.contactNumber}</td>
+                      <td>{getStatusBadge(teacher.status)}</td>
+                      <td>
+                        <Button
+                          variant="outline-primary"
+                          size="sm"
+                          className="me-2"
+                          onClick={() =>
+                            navigate(`/profile/teacher?id=${teacher._id}`)
+                          }
+                        >
+                          <i className="bi bi-eye"></i>
+                        </Button>
+                        <Button
+                          variant="outline-warning"
+                          size="sm"
+                          className="me-2"
+                          onClick={() => {
+                            /* Implement edit */
+                          }}
+                        >
+                          <i className="bi bi-pencil"></i>
+                        </Button>
+                        <Button
+                          variant="outline-danger"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedTeacher(teacher);
+                            setShowDeleteModal(true);
+                          }}
+                        >
+                          <i className="bi bi-trash"></i>
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+
+              {teachers.length === 0 && !loading && (
+                <div className="text-center py-5">
+                  <i className="bi bi-person-badge display-1 text-muted"></i>
+                  <p className="mt-3">No teachers found</p>
+                </div>
+              )}
+
+              {totalPages > 1 && (
+                <div className="d-flex justify-content-center mt-3">
+                  <Pagination>
+                    <Pagination.Prev
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={page === 1}
+                    />
+                    {[...Array(totalPages).keys()].map((p) => (
+                      <Pagination.Item
+                        key={p + 1}
+                        active={p + 1 === page}
+                        onClick={() => setPage(p + 1)}
+                      >
+                        {p + 1}
+                      </Pagination.Item>
+                    ))}
+                    <Pagination.Next
+                      onClick={() =>
+                        setPage((p) => Math.min(totalPages, p + 1))
+                      }
+                      disabled={page === totalPages}
+                    />
+                  </Pagination>
+                </div>
+              )}
+            </>
+          )}
+        </Card.Body>
+      </Card>
+
+      {/* Add Teacher Modal */}
+      <Modal
+        show={showAddModal}
+        onHide={() => setShowAddModal(false)}
+        size="lg"
+      >
+        <Modal.Header closeButton>
+          <Modal.Title>Add New Teacher</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Form>
+            <Row>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>First Name</Form.Label>
+                  <Form.Control
+                    type="text"
+                    value={formData.firstName}
+                    onChange={(e) =>
+                      setFormData({ ...formData, firstName: e.target.value })
+                    }
+                    required
+                  />
+                </Form.Group>
+              </Col>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Last Name</Form.Label>
+                  <Form.Control
+                    type="text"
+                    value={formData.lastName}
+                    onChange={(e) =>
+                      setFormData({ ...formData, lastName: e.target.value })
+                    }
+                    required
+                  />
+                </Form.Group>
+              </Col>
+            </Row>
+
+            <Row>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Email</Form.Label>
+                  <Form.Control
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) =>
+                      setFormData({ ...formData, email: e.target.value })
+                    }
+                    required
+                  />
+                </Form.Group>
+              </Col>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Phone</Form.Label>
+                  <Form.Control
+                    type="tel"
+                    value={formData.phone}
+                    onChange={(e) =>
+                      setFormData({ ...formData, phone: e.target.value })
+                    }
+                    required
+                  />
+                </Form.Group>
+              </Col>
+            </Row>
+
+            <Row>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Qualification</Form.Label>
+                  <Form.Control
+                    type="text"
+                    value={formData.qualification}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        qualification: e.target.value,
+                      })
+                    }
+                    placeholder="e.g., MSc, PhD"
+                    required
+                  />
+                </Form.Group>
+              </Col>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Department</Form.Label>
+                  <Form.Select
+                    value={formData.department}
+                    onChange={(e) =>
+                      setFormData({ ...formData, department: e.target.value })
+                    }
+                    required
+                  >
+                    <option value="">Select Department</option>
+                    <option value="Mathematics">Mathematics</option>
+                    <option value="Science">Science</option>
+                    <option value="English">English</option>
+                    <option value="History">History</option>
+                    <option value="Computer Science">Computer Science</option>
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+            </Row>
+
+            <Form.Group className="mb-3">
+              <Form.Label>Specialization (comma separated)</Form.Label>
+              <Form.Control
+                type="text"
+                value={formData.specialization}
+                onChange={(e) =>
+                  setFormData({ ...formData, specialization: e.target.value })
+                }
+                placeholder="e.g., Algebra, Calculus, Geometry"
+              />
+            </Form.Group>
+
+            <Form.Group className="mb-3">
+              <Form.Label>Joining Date</Form.Label>
+              <Form.Control
+                type="date"
+                value={formData.joiningDate}
+                onChange={(e) =>
+                  setFormData({ ...formData, joiningDate: e.target.value })
+                }
+                required
+              />
+            </Form.Group>
+          </Form>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowAddModal(false)}>
+            Cancel
+          </Button>
+          <Button variant="primary" onClick={handleAddTeacher}>
+            Add Teacher
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal show={showDeleteModal} onHide={() => setShowDeleteModal(false)}>
+        <Modal.Header closeButton>
+          <Modal.Title>Confirm Delete</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          Are you sure you want to delete {selectedTeacher?.firstName}{" "}
+          {selectedTeacher?.lastName}? This action cannot be undone.
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowDeleteModal(false)}>
+            Cancel
+          </Button>
+          <Button variant="danger" onClick={handleDeleteTeacher}>
+            Delete
+          </Button>
+        </Modal.Footer>
+      </Modal>
+    </div>
+  );
+};
+
+export default Teachers;
