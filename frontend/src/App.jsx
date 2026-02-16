@@ -4,9 +4,9 @@ import {
   Route,
   Navigate,
 } from "react-router-dom";
-import { AuthProvider } from "./context/AuthContext";
-import { SocketProvider } from "./context/SocketContext";
-import PrivateRoute from "./components/Common/PrivateRoute";
+import AuthProvider from "./context/AuthProvider";
+import SocketProvider from "./context/SocketProvider";
+import PrivateRoute from "./components/common/PrivateRoute";
 
 // Layout
 import Layout from "./components/layout/Layout";
@@ -62,16 +62,13 @@ function App() {
                 </PrivateRoute>
               }
             >
-              <Route path="/" element={<Navigate to="/dashboard" />} />
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<Dashboard />} />
 
               {/* Student Routes */}
               <Route path="/students" element={<Students />} />
-              <Route path="/students/:id" element={<StudentProfile />} />
-              <Route
-                path="/students/:id/details"
-                element={<StudentDetails />}
-              />
+              <Route path="/students/:id" element={<StudentDetails />} />
+              <Route path="/profile/student" element={<StudentProfile />} />
 
               {/* Teacher Routes */}
               <Route path="/teachers" element={<Teachers />} />
@@ -91,8 +88,8 @@ function App() {
               <Route path="/chat" element={<Chat />} />
             </Route>
 
-            {/* catch all route */}
-            <Route path="*" element={<Navigate to="/dashboard" />} />
+            {/* Catch all route */}
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </SocketProvider>
       </AuthProvider>
