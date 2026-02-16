@@ -1,7 +1,7 @@
 import React from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink as RouterNavLink } from "react-router-dom";
 import { Nav, Navbar } from "react-bootstrap";
-import { useAuth } from "../../context/AuthContext";
+import useAuth from "../../context/useAuth";
 
 const Sidebar = ({ isOpen, closeSidebar }) => {
   const { user } = useAuth();
@@ -26,6 +26,7 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
 
     const teacherItems = [
       { path: "/profile/teacher", icon: "bi-person", label: "My Profile" },
+      { path: "/attendance", icon: "bi-calendar-check", label: "Attendance" },
     ];
 
     let items = [...commonItems];
@@ -33,11 +34,7 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
     if (user?.role === "admin") {
       items = [...items, ...adminItems];
     } else if (user?.role === "teacher") {
-      items = [
-        ...items,
-        ...teacherItems,
-        { path: "/attendance", icon: "bi-calendar-check", label: "Attendance" },
-      ];
+      items = [...items, ...teacherItems];
     } else if (user?.role === "student") {
       items = [...items, ...studentItems];
     }
@@ -46,6 +43,11 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
   };
 
   const navItems = getNavItems();
+
+  // Function to determine if a nav item is active
+  const isActiveRoute = (path) => {
+    return window.location.pathname === path;
+  };
 
   return (
     <div
@@ -65,40 +67,45 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
         className="flex-column align-items-start p-3"
       >
         <div className="d-flex justify-content-between align-items-center w-100 mb-4">
-          <h5 className="mb-0">Menu</h5>
+          <h5 className="mb-0 text-white">Menu</h5>
           <button
             className="btn btn-sm btn-outline-light d-lg-none"
             onClick={closeSidebar}
+            aria-label="Close sidebar"
           >
             <i className="bi bi-x-lg"></i>
           </button>
         </div>
 
         <Nav className="flex-column w-100">
-          {navItems.map((item, index) => (
-            <Nav.Link
-              key={index}
-              as={NavLink}
-              to={item.path}
-              className="text-white mb-2 rounded"
-              activeClassName="active"
-              onClick={closeSidebar}
-              style={({ isActive }) => ({
-                backgroundColor: isActive ? "#0d6efd" : "transparent",
-                padding: "10px 15px",
-              })}
-            >
-              <i className={`${item.icon} me-2`}></i>
-              {item.label}
-            </Nav.Link>
-          ))}
+          {navItems.map((item, index) => {
+            const isActive = isActiveRoute(item.path);
+
+            return (
+              <Nav.Link
+                key={index}
+                as={RouterNavLink}
+                to={item.path}
+                className="text-white mb-2 rounded"
+                onClick={closeSidebar}
+                style={{
+                  backgroundColor: isActive ? "#0d6efd" : "transparent",
+                  padding: "10px 15px",
+                  textDecoration: "none",
+                }}
+              >
+                <i className={`${item.icon} me-2`}></i>
+                {item.label}
+              </Nav.Link>
+            );
+          })}
         </Nav>
 
         <div className="mt-auto w-100">
           <div className="text-center text-muted small mt-4">
             <div>
               Role:{" "}
-              <span className="text-info">{user?.role?.toUpperCase()}</span>
+              <span className="text-info text-uppercase">{user?.role}</span>
             </div>
             <div className="mt-2">v1.0.0</div>
           </div>
