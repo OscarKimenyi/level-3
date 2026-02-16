@@ -1,5 +1,4 @@
-import React from "react";
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Container,
@@ -9,24 +8,25 @@ import {
   Badge,
   Button,
 } from "react-bootstrap";
-import { useAuth } from "../../context/AuthContext";
-import { useSocket } from "../../context/SocketContext";
+import useAuth from "../../context/useAuth";
+import useSocket from "../../context/useSocket";
 
 const Navbar = ({ toggleSidebar }) => {
   const { user, logout } = useAuth();
-  const { socket, isConnected } = useSocket();
+  const { socket, isConnected, on } = useSocket();
   const navigate = useNavigate();
   const [notificationCount, setNotificationCount] = useState(0);
 
   useEffect(() => {
     if (socket) {
-      socket.on("new_notification", (data) => {
+      const unsubscribe = on("new_notification", (data) => {
         setNotificationCount((prev) => prev + 1);
-        // Show toast notification
         console.log("New notification:", data);
       });
+
+      return unsubscribe;
     }
-  }, [socket]);
+  }, [socket, on]);
 
   const handleLogout = () => {
     logout();
@@ -34,7 +34,12 @@ const Navbar = ({ toggleSidebar }) => {
   };
 
   return (
-    <BootstrapNavbar bg="dark" variant="dark" expand="lg" className="shadow">
+    <BootstrapNavbar
+      bg="dark"
+      variant="dark"
+      expand="lg"
+      className="shadow sticky-top"
+    >
       <Container fluid>
         <Button
           variant="outline-light"
@@ -46,50 +51,47 @@ const Navbar = ({ toggleSidebar }) => {
 
         <BootstrapNavbar.Brand as={Link} to="/dashboard" className="fw-bold">
           <i className="bi bi-mortarboard-fill me-2"></i>
-          Student Management System
+          SMS
         </BootstrapNavbar.Brand>
 
-        <div className="d-flex align-items-center ms-auto">
-          {/* Connection Status */}
+        <BootstrapNavbar.Toggle />
+
+        <BootstrapNavbar.Collapse>
+          <Nav className="me-auto">
+            <Nav.Link as={Link} to="/dashboard">
+              <i className="bi bi-speedometer2 me-1"></i>
+              Dashboard
+            </Nav.Link>
+          </Nav>
+        </BootstrapNavbar.Collapse>
+
+        <div className="d-flex align-items-center">
           <Badge bg={isConnected ? "success" : "danger"} className="me-3">
             <i className={`bi bi-circle-fill me-1`}></i>
-            {isConnected ? "Connected" : "Disconnected"}
+            {isConnected ? "Online" : "Offline"}
           </Badge>
 
-          {/* Notifications */}
-          <div className="dropdown me-3">
-            <Button
-              variant="outline-light"
-              id="notificationDropdown"
-              className="position-relative"
-            >
-              <i className="bi bi-bell"></i>
-              {notificationCount > 0 && (
-                <span className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
-                  {notificationCount}
-                </span>
-              )}
-            </Button>
+          <div className="position-relative me-3">
+            <i className="bi bi-bell fs-5 text-white"></i>
+            {notificationCount > 0 && (
+              <span className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                {notificationCount}
+              </span>
+            )}
           </div>
 
-          {/* User Dropdown */}
           <NavDropdown
             title={
-              <span>
+              <span className="text-white">
                 <i className="bi bi-person-circle me-1"></i>
                 {user?.username || "User"}
               </span>
             }
             align="end"
-            className="text-white"
           >
-            <NavDropdown.Item as={Link} to="/profile">
+            <NavDropdown.Item as={Link} to={`/profile/${user?.role}`}>
               <i className="bi bi-person me-2"></i>
-              My Profile
-            </NavDropdown.Item>
-            <NavDropdown.Item as={Link} to="/settings">
-              <i className="bi bi-gear me-2"></i>
-              Settings
+              Profile
             </NavDropdown.Item>
             <NavDropdown.Divider />
             <NavDropdown.Item onClick={handleLogout}>
