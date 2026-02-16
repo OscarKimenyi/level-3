@@ -11,14 +11,14 @@ const Layout = () => {
     <div className="d-flex flex-column min-vh-100">
       <Navbar toggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
 
-      <div className="d-flex flex-grow-1">
+      <div className="d-flex flex-fill">
         <Sidebar
           isOpen={sidebarOpen}
           closeSidebar={() => setSidebarOpen(false)}
         />
 
         <main
-          className="flex-grow-1 p-3"
+          className="flex-fill p-3"
           style={{
             marginLeft: sidebarOpen ? "250px" : "0",
             transition: "margin-left 0.3s",
