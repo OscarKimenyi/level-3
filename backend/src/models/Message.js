@@ -27,7 +27,6 @@ const messageSchema = new mongoose.Schema(
     },
     conversationId: {
       type: String,
-      required: true,
       index: true,
     },
   },
@@ -36,14 +35,15 @@ const messageSchema = new mongoose.Schema(
   },
 );
 
-// Generate conversation ID (always sorted so A-B is same as B-A)
-messageSchema.pre("save", function (next) {
-  const participants = [
-    this.sender.toString(),
-    this.receiver.toString(),
-  ].sort();
-  this.conversationId = participants.join("_");
-  next();
+// Generate conversation ID - FIXED VERSION
+messageSchema.pre("save", function () {
+  if (!this.conversationId) {
+    const participants = [
+      this.sender.toString(),
+      this.receiver.toString(),
+    ].sort();
+    this.conversationId = participants.join("_");
+  }
 });
 
 module.exports = mongoose.model("Message", messageSchema);

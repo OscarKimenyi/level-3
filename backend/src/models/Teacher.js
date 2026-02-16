@@ -10,7 +10,6 @@ const teacherSchema = new mongoose.Schema(
     },
     teacherId: {
       type: String,
-      required: true,
       unique: true,
     },
     firstName: {
@@ -58,14 +57,13 @@ const teacherSchema = new mongoose.Schema(
   },
 );
 
-// Generate teacher ID automatically
-teacherSchema.pre("save", async function (next) {
+// Generate teacher ID automatically - FIXED VERSION
+teacherSchema.pre("save", function () {
   if (!this.teacherId) {
     const year = new Date().getFullYear().toString().slice(-2);
     const random = Math.floor(1000 + Math.random() * 9000);
     this.teacherId = `TCH${year}${random}`;
   }
-  next();
 });
 
 module.exports = mongoose.model("Teacher", teacherSchema);

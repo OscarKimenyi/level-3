@@ -10,7 +10,6 @@ const studentSchema = new mongoose.Schema(
     },
     studentId: {
       type: String,
-      required: true,
       unique: true,
     },
     firstName: {
@@ -74,14 +73,13 @@ const studentSchema = new mongoose.Schema(
   },
 );
 
-// Generate student ID automatically
-studentSchema.pre("save", async function (next) {
+// Generate student ID automatically - FIXED VERSION
+studentSchema.pre("save", function () {
   if (!this.studentId) {
     const year = new Date().getFullYear().toString().slice(-2);
     const random = Math.floor(1000 + Math.random() * 9000);
     this.studentId = `STU${year}${random}`;
   }
-  next();
 });
 
 module.exports = mongoose.model("Student", studentSchema);
