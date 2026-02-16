@@ -13,8 +13,8 @@ import {
   Dropdown,
   DropdownButton,
 } from "react-bootstrap";
-import { useAuth } from "../context/AuthContext";
-import { useSocket } from "../context/SocketContext";
+import useAuth from "../context/useAuth";
+import useSocket from "../context/useSocket";
 import axios from "axios";
 import { formatDate } from "../utils/helpers";
 

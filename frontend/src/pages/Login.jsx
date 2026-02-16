@@ -9,7 +9,7 @@ import {
   Col,
   Alert,
 } from "react-bootstrap";
-import { useAuth } from "../context/AuthContext";
+import useAuth from "../context/useAuth";
 
 const Login = () => {
   const [email, setEmail] = useState("");

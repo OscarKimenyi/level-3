@@ -13,7 +13,7 @@ import {
   Spinner,
   Image,
 } from "react-bootstrap";
-import { useAuth } from "../context/AuthContext";
+import useAuth from "../context/useAuth";
 import axios from "axios";
 
 const StudentProfile = () => {
