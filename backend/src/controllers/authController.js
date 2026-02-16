@@ -14,9 +14,19 @@ const generateToken = (userId) => {
 };
 
 // Register new user
+
+// Register new user - COMPLETE FIXED VERSION
 const register = async (req, res) => {
   try {
     const { username, email, password, role, ...additionalData } = req.body;
+
+    // Validate required fields
+    if (!username || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide all required fields",
+      });
+    }
 
     // Check if user already exists
     const existingUser = await User.findOne({
@@ -30,39 +40,50 @@ const register = async (req, res) => {
       });
     }
 
-    // Create user
+    // Create user (password will be hashed by pre-save hook)
     const user = new User({
       username,
       email,
-      password,
+      password, // Plain password - will be hashed automatically
       role: role || "student",
     });
 
+    // Save user first
     await user.save();
 
     // Create role-specific profile
     if (role === "student") {
+      const Student = require("../models/Student");
       const student = new Student({
         userId: user._id,
-        firstName: additionalData.firstName || "",
+        firstName: additionalData.firstName || username,
         lastName: additionalData.lastName || "",
         phone: additionalData.phone || "",
-        classGrade: additionalData.classGrade || "",
+        classGrade: additionalData.classGrade || "Not specified",
+        dateOfBirth: additionalData.dateOfBirth || new Date(),
+        gender: additionalData.gender || "Other",
       });
       await student.save();
     } else if (role === "teacher") {
+      const Teacher = require("../models/Teacher");
       const teacher = new Teacher({
         userId: user._id,
-        firstName: additionalData.firstName || "",
+        firstName: additionalData.firstName || username,
         lastName: additionalData.lastName || "",
-        qualification: additionalData.qualification || "",
-        contactNumber: additionalData.contactNumber || "",
+        qualification: additionalData.qualification || "Not specified",
+        contactNumber: additionalData.phone || "",
+        department: additionalData.department || "General",
       });
       await teacher.save();
     }
 
     // Generate token
-    const token = generateToken(user._id);
+    const jwt = require("jsonwebtoken");
+    const token = jwt.sign(
+      { userId: user._id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" },
+    );
 
     // Update last login
     user.lastLogin = new Date();
@@ -82,6 +103,15 @@ const register = async (req, res) => {
     });
   } catch (error) {
     console.error("Registration error:", error);
+
+    // Check for duplicate key error
+    if (error.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        message: "User with this email or username already exists",
+      });
+    }
+
     res.status(500).json({
       success: false,
       message: "Server error during registration",
