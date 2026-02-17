@@ -11,7 +11,9 @@ const createAdmin = async () => {
     const existingAdmin = await User.findOne({ email: "admin@school.com" });
 
     if (existingAdmin) {
-      console.log("✅ Admin user already exists");
+      console.log("Admin user already exists");
+      console.log("Email: admin@school.com");
+      console.log("Password: admin123");
       process.exit(0);
     }
 
@@ -19,7 +21,7 @@ const createAdmin = async () => {
     const admin = new User({
       username: "admin",
       email: "admin@school.com",
-      password: "admin123",
+      password: "admin123", // Will be hashed by pre-save hook
       role: "admin",
       isActive: true,
     });
@@ -29,6 +31,7 @@ const createAdmin = async () => {
     console.log("Admin user created successfully!");
     console.log("Email: admin@school.com");
     console.log("Password: admin123");
+    console.log("CHANGE THIS PASSWORD AFTER FIRST LOGIN!");
 
     process.exit(0);
   } catch (error) {
