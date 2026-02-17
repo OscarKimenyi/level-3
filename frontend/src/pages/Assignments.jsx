@@ -71,10 +71,22 @@ const Assignments = () => {
 
   const handleAddAssignment = async () => {
     try {
+      // Validate required fields
+      if (!formData.title || !formData.course || !formData.dueDate) {
+        setError("Please fill in all required fields");
+        return;
+      }
+
       const formDataToSend = new FormData();
-      Object.keys(formData).forEach((key) => {
-        formDataToSend.append(key, formData[key]);
-      });
+      formDataToSend.append("title", formData.title);
+      formDataToSend.append("description", formData.description || "");
+      formDataToSend.append("course", formData.course);
+      formDataToSend.append(
+        "dueDate",
+        new Date(formData.dueDate).toISOString(),
+      );
+      formDataToSend.append("maxPoints", formData.maxPoints || 100);
+      formDataToSend.append("status", formData.status || "draft");
 
       await api.post("/assignments", formDataToSend, {
         headers: { "Content-Type": "multipart/form-data" },
@@ -85,6 +97,7 @@ const Assignments = () => {
       resetForm();
       fetchData();
     } catch (err) {
+      console.error("Error creating assignment:", err);
       setError(err.response?.data?.message || "Failed to create assignment");
     }
   };
