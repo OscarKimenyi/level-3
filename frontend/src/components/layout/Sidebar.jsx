@@ -1,9 +1,9 @@
 import React from "react";
 import { NavLink as RouterNavLink } from "react-router-dom";
-import { Nav, Navbar } from "react-bootstrap";
+import { Nav } from "react-bootstrap";
 import useAuth from "../../context/useAuth";
 
-const Sidebar = ({ isOpen, closeSidebar }) => {
+const Sidebar = ({ isOpen, closeSidebar, isMobile }) => {
   const { user } = useAuth();
 
   const getNavItems = () => {
@@ -20,13 +20,18 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
       { path: "/attendance", icon: "bi-calendar-check", label: "Attendance" },
     ];
 
+    const teacherItems = [
+      { path: "/profile/teacher", icon: "bi-person", label: "My Profile" },
+      { path: "/attendance", icon: "bi-calendar-check", label: "Attendance" },
+    ];
+
     const studentItems = [
       { path: "/profile/student", icon: "bi-person", label: "My Profile" },
     ];
 
-    const teacherItems = [
-      { path: "/profile/teacher", icon: "bi-person", label: "My Profile" },
-      { path: "/attendance", icon: "bi-calendar-check", label: "Attendance" },
+    const parentItems = [
+      { path: "/profile/parent", icon: "bi-person", label: "My Profile" },
+      { path: "/students/children", icon: "bi-people", label: "My Children" },
     ];
 
     let items = [...commonItems];
@@ -37,6 +42,8 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
       items = [...items, ...teacherItems];
     } else if (user?.role === "student") {
       items = [...items, ...studentItems];
+    } else if (user?.role === "parent") {
+      items = [...items, ...parentItems];
     }
 
     return items;
@@ -44,61 +51,67 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
 
   const navItems = getNavItems();
 
-  // Function to determine if a nav item is active
-  const isActiveRoute = (path) => {
-    return window.location.pathname === path;
+  // Close sidebar when clicking a link on mobile
+  const handleLinkClick = () => {
+    if (isMobile) {
+      closeSidebar();
+    }
   };
+
+  if (!isOpen && isMobile) {
+    return null; // Don't render on mobile when closed
+  }
 
   return (
     <div
-      className={`bg-dark text-white sidebar ${isOpen ? "open" : "closed"}`}
+      className="bg-dark text-white sidebar"
       style={{
-        width: isOpen ? "250px" : "0",
+        width: isOpen ? "250px" : isMobile ? "0" : "250px",
         minHeight: "calc(100vh - 56px)",
-        overflow: "hidden",
-        transition: "width 0.3s",
-        position: isOpen ? "relative" : "absolute",
+        overflowY: "auto",
+        transition: "width 0.3s ease",
+        position: isMobile ? "fixed" : "fixed",
+        left: 0,
+        top: "56px",
         zIndex: 1000,
+        display: isOpen ? "block" : isMobile ? "none" : "block",
+        boxShadow: isOpen ? "2px 0 5px rgba(0,0,0,0.1)" : "none",
       }}
     >
-      <Navbar
-        bg="dark"
-        variant="dark"
-        className="flex-column align-items-start p-3"
-      >
+      <div className="p-3">
         <div className="d-flex justify-content-between align-items-center w-100 mb-4">
           <h5 className="mb-0 text-white">Menu</h5>
-          <button
-            className="btn btn-sm btn-outline-light d-lg-none"
-            onClick={closeSidebar}
-            aria-label="Close sidebar"
-          >
-            <i className="bi bi-x-lg"></i>
-          </button>
+          {isMobile && isOpen && (
+            <button
+              className="btn btn-sm btn-outline-light"
+              onClick={closeSidebar}
+              aria-label="Close sidebar"
+            >
+              <i className="bi bi-x-lg"></i>
+            </button>
+          )}
         </div>
 
-        <Nav className="flex-column w-100">
-          {navItems.map((item, index) => {
-            const isActive = isActiveRoute(item.path);
-
-            return (
-              <Nav.Link
-                key={index}
-                as={RouterNavLink}
-                to={item.path}
-                className="text-white mb-2 rounded"
-                onClick={closeSidebar}
-                style={{
-                  backgroundColor: isActive ? "#0d6efd" : "transparent",
-                  padding: "10px 15px",
-                  textDecoration: "none",
-                }}
-              >
-                <i className={`${item.icon} me-2`}></i>
-                {item.label}
-              </Nav.Link>
-            );
-          })}
+        <Nav className="flex-column">
+          {navItems.map((item, index) => (
+            <Nav.Link
+              key={index}
+              as={RouterNavLink}
+              to={item.path}
+              className="text-white mb-2 rounded"
+              onClick={handleLinkClick}
+              style={({ isActive }) => ({
+                backgroundColor: isActive ? "#0d6efd" : "transparent",
+                padding: "10px 15px",
+                textDecoration: "none",
+                color: "white",
+                display: "block",
+              })}
+            >
+              <i className={`bi ${item.icon} me-2`}></i>
+              {item.label}
+            </Nav.Link>
+          ))}
         </Nav>
 
         <div className="mt-auto w-100">
@@ -110,7 +123,7 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
             <div className="mt-2">v1.0.0</div>
           </div>
         </div>
-      </Navbar>
+      </div>
     </div>
   );
 };
