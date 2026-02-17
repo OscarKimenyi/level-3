@@ -8,12 +8,14 @@ import {
   Row,
   Col,
   Alert,
+  InputGroup,
 } from "react-bootstrap";
 import useAuth from "../context/useAuth";
 
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -77,13 +79,23 @@ const Login = () => {
 
                 <Form.Group className="mb-3">
                   <Form.Label>Password</Form.Label>
-                  <Form.Control
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter your password"
-                    required
-                  />
+                  <InputGroup>
+                    <Form.Control
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Enter your password"
+                      required
+                    />
+                    <Button
+                      variant="outline-secondary"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      <i
+                        className={`bi ${showPassword ? "bi-eye-slash" : "bi-eye"}`}
+                      ></i>
+                    </Button>
+                  </InputGroup>
                 </Form.Group>
 
                 <div className="mb-3 text-end">
@@ -117,18 +129,6 @@ const Login = () => {
               </Form>
             </Card.Body>
           </Card>
-
-          <div className="text-center mt-4">
-            <small className="text-muted">
-              Demo Credentials:
-              <br />
-              Admin: admin@school.com / admin123
-              <br />
-              Teacher: teacher1@school.com / teacher123
-              <br />
-              Student: student1@school.com / student123
-            </small>
-          </div>
         </Col>
       </Row>
     </Container>
