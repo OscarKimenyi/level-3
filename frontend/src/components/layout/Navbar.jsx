@@ -16,6 +16,19 @@ const Navbar = ({ toggleSidebar }) => {
   const { socket, isConnected, on } = useSocket();
   const navigate = useNavigate();
   const [notificationCount, setNotificationCount] = useState(0);
+  const [darkMode, setDarkMode] = useState(
+    localStorage.getItem("darkMode") === "true",
+  );
+
+  useEffect(() => {
+    // Apply dark mode class to body
+    if (darkMode) {
+      document.body.classList.add("dark-mode");
+    } else {
+      document.body.classList.remove("dark-mode");
+    }
+    localStorage.setItem("darkMode", darkMode);
+  }, [darkMode]);
 
   useEffect(() => {
     if (socket) {
@@ -33,65 +46,110 @@ const Navbar = ({ toggleSidebar }) => {
     navigate("/login");
   };
 
+  const toggleDarkMode = () => {
+    setDarkMode(!darkMode);
+  };
+
   return (
     <BootstrapNavbar
-      bg="dark"
-      variant="dark"
+      bg={darkMode ? "dark" : "primary"}
+      variant={darkMode ? "dark" : "dark"}
       expand="lg"
-      className="shadow sticky-top"
+      className="shadow-sm sticky-top"
+      style={{ transition: "all 0.3s ease" }}
     >
       <Container fluid>
         <Button
           variant="outline-light"
           className="me-3 d-lg-none"
           onClick={toggleSidebar}
+          size="sm"
         >
           <i className="bi bi-list"></i>
         </Button>
 
-        <BootstrapNavbar.Brand as={Link} to="/dashboard" className="fw-bold">
+        <BootstrapNavbar.Brand
+          as={Link}
+          to="/dashboard"
+          className="fw-bold text-white"
+        >
           <i className="bi bi-mortarboard-fill me-2"></i>
           SMS
         </BootstrapNavbar.Brand>
 
-        <BootstrapNavbar.Toggle />
+        <BootstrapNavbar.Toggle
+          aria-controls="navbar-nav"
+          className="border-light"
+        />
 
-        <BootstrapNavbar.Collapse>
+        <BootstrapNavbar.Collapse id="navbar-nav">
           <Nav className="me-auto">
-            <Nav.Link as={Link} to="/dashboard">
+            <Nav.Link as={Link} to="/dashboard" className="text-white">
               <i className="bi bi-speedometer2 me-1"></i>
               Dashboard
             </Nav.Link>
           </Nav>
         </BootstrapNavbar.Collapse>
 
-        <div className="d-flex align-items-center">
-          <Badge bg={isConnected ? "success" : "danger"} className="me-3">
-            <i className={`bi bi-circle-fill me-1`}></i>
+        <div className="d-flex align-items-center gap-2">
+          {/* Dark Mode Toggle */}
+          <Button
+            variant="outline-light"
+            size="sm"
+            onClick={toggleDarkMode}
+            className="d-flex align-items-center"
+            title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+          >
+            <i
+              className={`bi ${darkMode ? "bi-sun-fill" : "bi-moon-fill"}`}
+            ></i>
+          </Button>
+
+          {/* Connection Status */}
+          <Badge
+            bg={isConnected ? "success" : "danger"}
+            className="d-none d-md-inline px-3 py-2"
+            pill
+          >
+            <i
+              className={`bi bi-circle-fill me-1`}
+              style={{ fontSize: "0.6rem" }}
+            ></i>
             {isConnected ? "Online" : "Offline"}
           </Badge>
 
-          <div className="position-relative me-3">
-            <i className="bi bi-bell fs-5 text-white"></i>
-            {notificationCount > 0 && (
-              <span className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
-                {notificationCount}
-              </span>
-            )}
+          {/* Notifications */}
+          <div className="position-relative">
+            <Button
+              variant="outline-light"
+              size="sm"
+              className="position-relative"
+            >
+              <i className="bi bi-bell"></i>
+              {notificationCount > 0 && (
+                <span className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                  {notificationCount > 9 ? "9+" : notificationCount}
+                </span>
+              )}
+            </Button>
           </div>
 
+          {/* User Dropdown */}
           <NavDropdown
             title={
-              <span className="text-white">
-                <i className="bi bi-person-circle me-1"></i>
-                {user?.username || "User"}
+              <span className="text-white d-flex align-items-center">
+                <i className="bi bi-person-circle me-1 fs-5"></i>
+                <span className="d-none d-md-inline">
+                  {user?.username || "User"}
+                </span>
               </span>
             }
             align="end"
+            className="text-white"
           >
             <NavDropdown.Item as={Link} to={`/profile/${user?.role}`}>
               <i className="bi bi-person me-2"></i>
-              Profile
+              My Profile
             </NavDropdown.Item>
             <NavDropdown.Divider />
             <NavDropdown.Item onClick={handleLogout}>
