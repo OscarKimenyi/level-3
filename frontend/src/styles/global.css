@@ -325,3 +325,57 @@ body {
     display: block !important;
   }
 }
+
+/* Dark Mode Styles */
+body.dark-mode {
+  background-color: #1a1a1a;
+  color: #ffffff;
+}
+
+body.dark-mode .card {
+  background-color: #2d2d2d;
+  border-color: #404040;
+  color: #ffffff;
+}
+
+body.dark-mode .table {
+  color: #ffffff;
+}
+
+body.dark-mode .table thead th {
+  background-color: #333333;
+  color: #ffffff;
+  border-color: #404040;
+}
+
+body.dark-mode .table td {
+  border-color: #404040;
+}
+
+body.dark-mode .modal-content {
+  background-color: #2d2d2d;
+  color: #ffffff;
+}
+
+body.dark-mode .form-control,
+body.dark-mode .form-select {
+  background-color: #333333;
+  border-color: #404040;
+  color: #ffffff;
+}
+
+body.dark-mode .form-control:focus,
+body.dark-mode .form-select:focus {
+  background-color: #3d3d3d;
+  color: #ffffff;
+}
+
+body.dark-mode .list-group-item {
+  background-color: #2d2d2d;
+  color: #ffffff;
+  border-color: #404040;
+}
+
+body.dark-mode .bg-light {
+  background-color: #333333 !important;
+}
