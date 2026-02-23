@@ -10,12 +10,14 @@ import {
 } from "react-bootstrap";
 import useAuth from "../../context/useAuth";
 import useSocket from "../../context/useSocket";
+import { useNotifications } from "../../context/NotificationContext";
+import NotificationsPanel from "../notifications/NotificationsPanel";
 
 const Navbar = ({ toggleSidebar }) => {
   const { user, logout } = useAuth();
-  const { socket, isConnected, on } = useSocket();
+  const { isConnected } = useSocket();
+  const { unreadCount, panelOpen, setPanelOpen } = useNotifications();
   const navigate = useNavigate();
-  const [notificationCount, setNotificationCount] = useState(0);
   const [darkMode, setDarkMode] = useState(
     localStorage.getItem("darkMode") === "true",
   );
@@ -29,17 +31,6 @@ const Navbar = ({ toggleSidebar }) => {
     }
     localStorage.setItem("darkMode", darkMode);
   }, [darkMode]);
-
-  useEffect(() => {
-    if (socket) {
-      const unsubscribe = on("new_notification", (data) => {
-        setNotificationCount((prev) => prev + 1);
-        console.log("New notification:", data);
-      });
-
-      return unsubscribe;
-    }
-  }, [socket, on]);
 
   const handleLogout = () => {
     logout();
@@ -121,17 +112,23 @@ const Navbar = ({ toggleSidebar }) => {
           {/* Notifications */}
           <div className="position-relative">
             <Button
-              variant="outline-light"
-              size="sm"
-              className="position-relative"
+              variant="link"
+              className="text-white p-0 position-relative"
+              onClick={() => setPanelOpen(!panelOpen)}
+              aria-label="Notifications"
             >
-              <i className="bi bi-bell"></i>
-              {notificationCount > 0 && (
+              <i className="bi bi-bell fs-5"></i>
+              {unreadCount > 0 && (
                 <span className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
-                  {notificationCount > 9 ? "9+" : notificationCount}
+                  {unreadCount > 99 ? "99+" : unreadCount}
                 </span>
               )}
             </Button>
+
+            {/* Notifications Panel */}
+            {panelOpen && (
+              <NotificationsPanel onClose={() => setPanelOpen(false)} />
+            )}
           </div>
 
           {/* User Dropdown */}
@@ -146,6 +143,7 @@ const Navbar = ({ toggleSidebar }) => {
             }
             align="end"
             className="text-white"
+            id="user-dropdown"
           >
             <NavDropdown.Item as={Link} to={`/profile/${user?.role}`}>
               <i className="bi bi-person me-2"></i>
