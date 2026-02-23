@@ -117,30 +117,57 @@ export const NotificationProvider = ({ children }) => {
 
   // Listen for real-time notifications
   useEffect(() => {
-    if (!socket || !isAuthenticated) return;
+    if (!socket || !isAuthenticated) {
+      console.log("🔌 Socket not available or not authenticated");
+      return;
+    }
+
+    console.log("📡 Setting up notification listener");
 
     const handleNewNotification = (data) => {
+      console.log("📨 New notification received:", data);
+
       // Add to notifications list
       const newNotification = {
-        _id: Date.now().toString(), // Temporary ID
-        ...data,
+        _id: data._id || Date.now().toString(),
+        title: data.title,
+        message: data.message,
+        type: data.type || "info",
         read: false,
-        createdAt: new Date(),
+        link: data.link,
+        createdAt: data.timestamp || new Date(),
+        metadata: data.metadata,
       };
 
-      setNotifications((prev) => [newNotification, ...prev]);
+      setNotifications((prev) => {
+        // Don't add duplicates
+        if (prev.some((n) => n._id === newNotification._id)) {
+          return prev;
+        }
+        return [newNotification, ...prev];
+      });
+
       setUnreadCount((prev) => prev + 1);
 
       // Play sound (optional)
-      const audio = new Audio("/notification.mp3");
-      audio.play().catch(() => {});
+      try {
+        const audio = new Audio("/notification.mp3");
+        audio.play().catch((e) => console.log("🔇 Audio play failed:", e));
+      } catch {
+        console.log("🔇 Audio not supported");
+      }
 
       // Show browser notification if permitted
       if (Notification.permission === "granted") {
-        new Notification(data.title, {
-          body: data.message,
-          icon: "/logo192.png",
-        });
+        try {
+          new Notification(data.title, {
+            body: data.message,
+            icon: "/vite.svg",
+            silent: true,
+          });
+        } catch (e) {
+          console.log("🔔 Browser notification failed:", e);
+        }
       }
     };
 
@@ -148,12 +175,44 @@ export const NotificationProvider = ({ children }) => {
 
     // Request notification permission
     if (Notification.permission === "default") {
-      Notification.requestPermission();
+      Notification.requestPermission().then((permission) => {
+        console.log("🔔 Notification permission:", permission);
+      });
     }
 
-    return unsubscribe;
+    // Test connection
+    if (socket.connected) {
+      console.log("Socket is connected");
+    } else {
+      console.log("Socket is not connected");
+    }
+
+    return () => {
+      console.log("📡 Cleaning up notification listener");
+      unsubscribe();
+    };
   }, [socket, isAuthenticated, on]);
 
+  // Add this useEffect to log socket connection status
+  useEffect(() => {
+    if (socket) {
+      console.log(
+        "🔄 Socket status:",
+        socket.connected ? "connected" : "disconnected",
+      );
+
+      const onConnect = () => console.log("Socket connected");
+      const onDisconnect = () => console.log("Socket disconnected");
+
+      socket.on("connect", onConnect);
+      socket.on("disconnect", onDisconnect);
+
+      return () => {
+        socket.off("connect", onConnect);
+        socket.off("disconnect", onDisconnect);
+      };
+    }
+  }, [socket]);
   // Initial fetch
   useEffect(() => {
     if (isAuthenticated) {
