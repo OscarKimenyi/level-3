@@ -14,8 +14,6 @@ const generateToken = (userId) => {
 };
 
 // Register new user
-
-// Register new user - COMPLETE FIXED VERSION
 const register = async (req, res) => {
   try {
     const { username, email, password, role, ...additionalData } = req.body;
@@ -28,27 +26,34 @@ const register = async (req, res) => {
       });
     }
 
-    // Check if user already exists
-    const existingUser = await User.findOne({
-      $or: [{ email }, { username }],
-    });
-
-    if (existingUser) {
+    // Check if email already exists with proper error message
+    const existingEmail = await User.findOne({ email });
+    if (existingEmail) {
       return res.status(400).json({
         success: false,
-        message: "User with this email or username already exists",
+        message:
+          "This email is already registered. Please use a different email.",
       });
     }
 
-    // Create user (password will be hashed by pre-save hook)
+    // Check if username already exists
+    const existingUsername = await User.findOne({ username });
+    if (existingUsername) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "This username is already taken. Please choose a different username.",
+      });
+    }
+
+    // Create user
     const user = new User({
       username,
       email,
-      password, // Plain password - will be hashed automatically
+      password,
       role: role || "student",
     });
 
-    // Save user first
     await user.save();
 
     // Create role-specific profile
@@ -106,10 +111,20 @@ const register = async (req, res) => {
 
     // Check for duplicate key error
     if (error.code === 11000) {
-      return res.status(400).json({
-        success: false,
-        message: "User with this email or username already exists",
-      });
+      const field = Object.keys(error.keyPattern)[0];
+      if (field === "email") {
+        return res.status(400).json({
+          success: false,
+          message:
+            "This email is already registered. Please use a different email.",
+        });
+      } else if (field === "username") {
+        return res.status(400).json({
+          success: false,
+          message:
+            "This username is already taken. Please choose a different username.",
+        });
+      }
     }
 
     res.status(500).json({
