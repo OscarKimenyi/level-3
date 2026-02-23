@@ -141,6 +141,11 @@ const Assignments = () => {
       const response = await api.post(
         `/assignments/${selectedAssignment._id}/submit`,
         formDataToSend,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        },
       );
 
       if (response.data.success) {
@@ -475,11 +480,11 @@ const Assignments = () => {
           >
             {submitting ? (
               <>
-                <spinner size="sm" animation="border" className="me-2" />
+                <span className="spinner-border spinner-border-sm me-2"></span>
                 Submitting...
               </>
             ) : (
-              "submit Assignment"
+              "Submit Assignment"
             )}
           </Button>
         </Modal.Footer>

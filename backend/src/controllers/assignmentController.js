@@ -175,6 +175,18 @@ const deleteAssignment = async (req, res) => {
 // Submit assignment
 const submitAssignment = async (req, res) => {
   try {
+    console.log("Submit assignment request received:");
+    console.log("Assignment ID:", req.params.id);
+    console.log("User ID:", req.user._id);
+    console.log("File received:", req.file ? "Yes" : "No");
+    if (req.file) {
+      console.log("File details:", {
+        filename: req.file.filename,
+        originalname: req.file.originalname,
+        size: req.file.size,
+        mimetype: req.file.mimetype,
+      });
+    }
     const { id } = req.params;
 
     // Find student
