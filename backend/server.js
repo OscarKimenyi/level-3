@@ -65,18 +65,37 @@ io.on("connection", (socket) => {
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       socket.userId = decoded.userId;
+      socket.userRole = decoded.role;
+
+      // Join personal room for direct messages
       socket.join(decoded.userId.toString());
+
+      // Join role-based room for broadcasts
       socket.join(decoded.role);
-      console.log(`✅ User ${decoded.userId} authenticated for socket`);
+
+      console.log(
+        `✅ User ${decoded.userId} (${decoded.role}) authenticated for socket`,
+      );
+      console.log(
+        `   Joined rooms: ${decoded.userId.toString()}, ${decoded.role}`,
+      );
+
+      // Acknowledge authentication
+      socket.emit("authenticated", { success: true });
     } catch (error) {
-      console.log("❌ Socket authentication failed");
+      console.log("❌ Socket authentication failed:", error.message);
+      socket.emit("authenticated", { success: false, error: error.message });
     }
   });
 
   // Handle chat messages
   socket.on("send_message", (data) => {
     const { receiverId, message } = data;
-    io.to(receiverId).emit("receive_message", {
+    console.log(
+      `📨 Message from ${socket.userId} to ${receiverId}: ${message.substring(0, 30)}...`,
+    );
+
+    io.to(receiverId.toString()).emit("receive_message", {
       senderId: socket.userId,
       message,
       timestamp: new Date(),
@@ -86,16 +105,15 @@ io.on("connection", (socket) => {
   // Handle typing indicator
   socket.on("typing", (data) => {
     const { receiverId, isTyping } = data;
-    io.to(receiverId).emit("user_typing", {
+    io.to(receiverId.toString()).emit("user_typing", {
       userId: socket.userId,
       isTyping,
     });
   });
 
-  // Handle notification read
+  // Handle notification read receipt
   socket.on("notification_read", (data) => {
     const { notificationId } = data;
-    // Can emit to admin that notification was read
     io.to("admin").emit("notification_read_receipt", {
       notificationId,
       userId: socket.userId,
@@ -104,7 +122,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
-    console.log("🔌 Client disconnected:", socket.id);
+    console.log("🔌 Client disconnected:", socket.id, "User:", socket.userId);
   });
 });
 
