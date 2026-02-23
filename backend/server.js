@@ -13,6 +13,7 @@ const courseRoutes = require("./src/routes/courseRoutes");
 const attendanceRoutes = require("./src/routes/attendanceRoutes");
 const assignmentRoutes = require("./src/routes/assignmentRoutes");
 const { authenticateSocket } = require("./src/middleware/authMiddleware");
+const notificationRoutes = require("./src/routes/notificationRoutes");
 
 // Initialize app
 const app = express();
@@ -45,11 +46,15 @@ app.use("/api/teachers", teacherRoutes);
 app.use("/api/courses", courseRoutes);
 app.use("/api/attendance", attendanceRoutes);
 app.use("/api/assignments", assignmentRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 // Root route
 app.get("/", (req, res) => {
   res.json({ message: "Student Management System API" });
 });
+
+// Make io accessible to routes
+app.set("io", io);
 
 // Socket.io Connection
 io.on("connection", (socket) => {
@@ -58,43 +63,44 @@ io.on("connection", (socket) => {
   // Authenticate socket
   socket.on("authenticate", (token) => {
     try {
-      const user = authenticateSocket(token);
-      if (user) {
-        socket.user = user;
-        socket.join(user.role);
-        socket.join(user._id.toString());
-        console.log(`User ${user.email} authenticated for socket`);
-      }
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      socket.userId = decoded.userId;
+      socket.join(decoded.userId.toString());
+      socket.join(decoded.role);
+      console.log(`✅ User ${decoded.userId} authenticated for socket`);
     } catch (error) {
-      console.log("Socket authentication failed");
+      console.log("❌ Socket authentication failed");
     }
   });
 
   // Handle chat messages
   socket.on("send_message", (data) => {
     const { receiverId, message } = data;
-    // Emit to specific user
     io.to(receiverId).emit("receive_message", {
-      senderId: socket.user?._id,
+      senderId: socket.userId,
       message,
       timestamp: new Date(),
     });
   });
 
-  // Handle notifications
-  socket.on("send_notification", (data) => {
-    const { userId, title, message } = data;
-    io.to(userId).emit("new_notification", {
-      title,
-      message,
-      timestamp: new Date(),
+  // Handle typing indicator
+  socket.on("typing", (data) => {
+    const { receiverId, isTyping } = data;
+    io.to(receiverId).emit("user_typing", {
+      userId: socket.userId,
+      isTyping,
     });
   });
 
-  // Handle attendance updates
-  socket.on("attendance_updated", (data) => {
-    const { courseId } = data;
-    io.to(`course_${courseId}`).emit("attendance_changed", data);
+  // Handle notification read
+  socket.on("notification_read", (data) => {
+    const { notificationId } = data;
+    // Can emit to admin that notification was read
+    io.to("admin").emit("notification_read_receipt", {
+      notificationId,
+      userId: socket.userId,
+      timestamp: new Date(),
+    });
   });
 
   socket.on("disconnect", () => {
