@@ -174,29 +174,34 @@ const sendNotification = async (req, res) => {
     }
 
     let targetUsers = [];
+    let targetRoom = "";
 
     // Determine recipients
     switch (recipients) {
       case "all":
         targetUsers = await User.find({ isActive: true }).select("_id");
+        targetRoom = "all";
         break;
       case "students":
         targetUsers = await User.find({
           role: "student",
           isActive: true,
         }).select("_id");
+        targetRoom = "student";
         break;
       case "teachers":
         targetUsers = await User.find({
           role: "teacher",
           isActive: true,
         }).select("_id");
+        targetRoom = "teacher";
         break;
       case "parents":
         targetUsers = await User.find({
           role: "parent",
           isActive: true,
         }).select("_id");
+        targetRoom = "parent";
         break;
       default:
         return res.status(400).json({
@@ -225,18 +230,30 @@ const sendNotification = async (req, res) => {
     }));
 
     const createdNotifications = await Notification.insertMany(notifications);
+    console.log(`✅ Created ${createdNotifications.length} notifications`);
 
     // Emit real-time notifications via socket.io
     const io = req.app.get("io");
+
+    // Emit to each user individually (more reliable)
+    let sentCount = 0;
     targetUsers.forEach((user) => {
-      io.to(user._id.toString()).emit("new_notification", {
+      const userId = user._id.toString();
+      io.to(userId).emit("new_notification", {
+        _id:
+          createdNotifications.find((n) => n.recipient.toString() === userId)
+            ?._id || Date.now(),
         title,
         message,
         type: type || "info",
         timestamp: new Date(),
         link,
+        read: false,
       });
+      sentCount++;
     });
+
+    console.log(`📨 Emitted real-time notifications to ${sentCount} users`);
 
     res.json({
       success: true,
@@ -248,6 +265,7 @@ const sendNotification = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to send notification",
+      error: error.message,
     });
   }
 };
