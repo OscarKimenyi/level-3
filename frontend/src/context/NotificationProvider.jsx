@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import NotificationContext from "./NotificationContext";
-import { useAuth } from "./useAuth";
-import { useSocket } from "./useSocket";
+import useAuth from "./useAuth";
+import useSocket from "./useSocket";
 import api from "../services/api";
 
 export const NotificationProvider = ({ children }) => {
