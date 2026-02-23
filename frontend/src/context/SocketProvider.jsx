@@ -74,6 +74,24 @@ const SocketProvider = ({ children }) => {
       setIsConnected(false);
     });
 
+    // In the useEffect where socket is created, add:
+
+    socketInstance.on("connect", () => {
+      console.log("✅ Connected to socket server with ID:", socketInstance.id);
+      setIsConnected(true);
+      setSocketId(socketInstance.id);
+      socketInstance.emit("authenticate", token);
+    });
+
+    socketInstance.on("authenticated", (data) => {
+      console.log("🔄 Socket authentication response:", data);
+      if (data.success) {
+        console.log("Socket authenticated successfully");
+      } else {
+        console.log("Socket authentication failed:", data.error);
+      }
+    });
+
     // Cleanup function
     return () => {
       if (socketRef.current) {
