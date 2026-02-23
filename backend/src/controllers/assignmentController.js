@@ -194,6 +194,28 @@ const submitAssignment = async (req, res) => {
       });
     }
 
+    if (assignment.status !== "published") {
+      return res.status(400).json({
+        success: false,
+        message: "This assignment is not accepting submissions",
+      });
+    }
+
+    if (new Date(assignment.dueDate) < new Date()) {
+      return res.status(400).json({
+        success: false,
+        message: "Assignment due date has passed",
+      });
+    }
+
+    const course = await Course.findById(assignment.course);
+    if (!course.students.includes(student._id)) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not enrolled in this course",
+      });
+    }
+
     // Check if already submitted
     const existingSubmission = assignment.submissions.find(
       (s) => s.student.toString() === student._id.toString(),
@@ -210,6 +232,11 @@ const submitAssignment = async (req, res) => {
         path: req.file.path,
         originalName: req.file.originalname,
       };
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: "Please upload a file for submission",
+      });
     }
 
     if (existingSubmission) {
