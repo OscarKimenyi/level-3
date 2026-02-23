@@ -25,6 +25,7 @@ const Teachers = () => {
   const [selectedTeacher, setSelectedTeacher] = useState(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [formData, setFormData] = useState({
@@ -65,37 +66,62 @@ const Teachers = () => {
   const handleSearch = (e) => {
     e.preventDefault();
     setPage(1);
-    // fetchTeachers will be called by useEffect when page/search changes
   };
 
+  // Fix the handleAddTeacher function
   const handleAddTeacher = async () => {
     try {
+      setSubmitting(true);
+      setError("");
+
+      // Validate form
+      if (
+        !formData.firstName ||
+        !formData.lastName ||
+        !formData.email ||
+        !formData.phone
+      ) {
+        setError("Please fill in all required fields");
+        setSubmitting(false);
+        return;
+      }
+
+      // Create a unique username from email (add timestamp to ensure uniqueness)
+      const baseUsername = formData.email.split("@")[0];
+      const uniqueUsername = `${baseUsername}_${Date.now()}`;
+
       // First create user account
       const userResponse = await api.post("/auth/register", {
-        username: formData.email.split("@")[0],
+        username: uniqueUsername, // Use unique username
         email: formData.email,
         password: "teacher123", // Default password
         role: "teacher",
-      });
-
-      // Then create teacher profile
-      await api.post("/teachers", {
-        userId: userResponse.data.user.id,
         firstName: formData.firstName,
         lastName: formData.lastName,
+        phone: formData.phone,
         qualification: formData.qualification,
-        specialization: formData.specialization.split(",").map((s) => s.trim()),
-        contactNumber: formData.phone,
         department: formData.department,
-        joiningDate: formData.joiningDate,
       });
 
-      setSuccess("Teacher added successfully");
-      setShowAddModal(false);
-      resetForm();
-      fetchTeachers(); // Refresh the list
+      if (userResponse.data.success) {
+        setSuccess("Teacher added successfully! Default password: teacher123");
+        setShowAddModal(false);
+        resetForm();
+        fetchTeachers(); // Refresh the list
+      }
+
+      setTimeout(() => setSuccess(""), 3000);
     } catch (err) {
-      setError(err.response?.data?.message || "Failed to add teacher");
+      console.error("Error adding teacher:", err);
+
+      // Handle specific error messages
+      if (err.response?.data?.message) {
+        setError(err.response.data.message);
+      } else {
+        setError("Failed to add teacher");
+      }
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -449,6 +475,20 @@ const Teachers = () => {
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setShowDeleteModal(false)}>
             Cancel
+          </Button>
+          <Button
+            variant="primary"
+            onClick={handleAddTeacher}
+            disabled={submitting}
+          >
+            {submitting ? (
+              <>
+                <span className="spinner-border spinner-border-sm me-2"></span>
+                Adding...
+              </>
+            ) : (
+              "Add Teacher"
+            )}
           </Button>
           <Button variant="danger" onClick={handleDeleteTeacher}>
             Delete
