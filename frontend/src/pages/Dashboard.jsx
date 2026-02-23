@@ -653,22 +653,27 @@ const Dashboard = () => {
               <Row>
                 <Col md={6}>
                   <Form.Group className="mb-3">
-                    <Form.Label>Class/Grade *</Form.Label>
-                    <Form.Control
-                      type="text"
-                      value={studentForm.classGrade}
+                    <Form.Label>Year of Study *</Form.Label>
+                    <Form.Select
+                      value={studentForm.yearOfStudy}
                       onChange={(e) =>
                         setStudentForm({
                           ...studentForm,
-                          classGrade: e.target.value,
+                          yearOfStudy: e.target.value,
                         })
                       }
-                      placeholder="e.g., Grade 10"
                       required
-                    />
+                    >
+                      <option value="">Select Year</option>
+                      <option value="1">Year 1</option>
+                      <option value="2">Year 2</option>
+                      <option value="3">Year 3</option>
+                      <option value="4">Year 4</option>
+                      <option value="5">Year 5</option>
+                    </Form.Select>
                   </Form.Group>
                 </Col>
-                <Col md={6}>
+                {/* <Col md={6}>
                   <Form.Group className="mb-3">
                     <Form.Label>Section</Form.Label>
                     <Form.Control
@@ -683,7 +688,7 @@ const Dashboard = () => {
                       placeholder="e.g., A"
                     />
                   </Form.Group>
-                </Col>
+                </Col> */}
               </Row>
 
               <Row>
