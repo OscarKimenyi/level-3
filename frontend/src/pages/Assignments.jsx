@@ -30,6 +30,7 @@ const Assignments = () => {
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [selectedAssignment, setSelectedAssignment] = useState(null);
   const [submissionFile, setSubmissionFile] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -108,27 +109,53 @@ const Assignments = () => {
       return;
     }
 
+    // Validate file size (10MB max)
+    if (submissionFile.size > 10 * 1024 * 1024) {
+      setError("File size exceeds 10MB limit");
+      return;
+    }
+
+    // Validate file type
+    const allowedTypes = [
+      "application/pdf",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "text/plain",
+      "image/jpeg",
+      "image/png",
+    ];
+
+    if (!allowedTypes.includes(submissionFile.type)) {
+      setError(
+        "Invalid file type. Only PDF, DOC, TXT, and image files are allowed.",
+      );
+      return;
+    }
+
     try {
+      setSubmitting(true);
+
       const formDataToSend = new FormData();
       formDataToSend.append("submission", submissionFile);
 
-      await api.post(
+      const response = await api.post(
         `/assignments/${selectedAssignment._id}/submit`,
         formDataToSend,
-        {
-          headers: { "Content-Type": "multipart/form-data" },
-        },
       );
 
-      setSuccess("Assignment submitted successfully");
-      setShowSubmitModal(false);
-      setSubmissionFile(null);
-      fetchData();
+      if (response.data.success) {
+        setSuccess("Assignment submitted successfully");
+        setShowSubmitModal(false);
+        setSubmissionFile(null);
+        fetchData();
+      }
     } catch (err) {
+      console.error("Error submitting assignment:", err);
       setError(err.response?.data?.message || "Failed to submit assignment");
+    } finally {
+      setSubmitting(false);
     }
   };
-
   const resetForm = () => {
     setFormData({
       title: "",
@@ -444,9 +471,16 @@ const Assignments = () => {
           <Button
             variant="primary"
             onClick={handleSubmitAssignment}
-            disabled={!submissionFile}
+            disabled={!submissionFile || submitting}
           >
-            Submit
+            {submitting ? (
+              <>
+                <spinner size="sm" animation="border" className="me-2" />
+                Submitting...
+              </>
+            ) : (
+              "submit Assignment"
+            )}
           </Button>
         </Modal.Footer>
       </Modal>
