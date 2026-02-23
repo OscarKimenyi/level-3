@@ -173,20 +173,20 @@ const Dashboard = () => {
         !studentForm.phone
       ) {
         setError("Please fill in all required fields");
+        setSubmitting(false);
         return;
       }
 
+      // Create a unique username from email (add timestamp to ensure uniqueness)
+      const baseUsername = studentForm.email.split("@")[0];
+      const uniqueUsername = `${baseUsername}_${Date.now()}`;
+
       // First create user account
       const userResponse = await api.post("/auth/register", {
-        username: studentForm.email.split("@")[0],
+        username: uniqueUsername, // Use unique username
         email: studentForm.email,
         password: "student123", // Default password
         role: "student",
-      });
-
-      // Then create student profile
-      await api.post("/students", {
-        userId: userResponse.data.user.id,
         firstName: studentForm.firstName,
         lastName: studentForm.lastName,
         phone: studentForm.phone,
@@ -196,14 +196,23 @@ const Dashboard = () => {
         dateOfBirth: studentForm.dateOfBirth || new Date(),
       });
 
-      setSuccess("Student added successfully! Default password: student123");
-      setShowStudentModal(false);
-      resetStudentForm();
-      fetchDashboardData(); // Refresh stats
+      if (userResponse.data.success) {
+        setSuccess(`Student added successfully! Default password: student123`);
+        setShowStudentModal(false);
+        resetStudentForm();
+        fetchDashboardData(); // Refresh stats
+      }
 
       setTimeout(() => setSuccess(""), 3000);
     } catch (err) {
-      setError(err.response?.data?.message || "Failed to add student");
+      console.error("Error adding student:", err);
+
+      // Handle specific error messages
+      if (err.response?.data?.message) {
+        setError(err.response.data.message);
+      } else {
+        setError("Failed to add student");
+      }
     } finally {
       setSubmitting(false);
     }
