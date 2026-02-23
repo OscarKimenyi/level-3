@@ -19,11 +19,16 @@ const {
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, "uploads/assignments/");
+    const dir = "uploads/assignments";
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    cb(null, dir);
   },
   filename: (req, file, cb) => {
     const uniqueName = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, uniqueName + path.extname(file.originalname));
+    const ext = path.extname(file.originalname);
+    cb(null, uniqueName + ext);
   },
 });
 
@@ -65,7 +70,12 @@ router.put(
 router.delete("/:id", roleMiddleware("teacher"), deleteAssignment);
 
 // Student submissions
-router.post("/:id/submit", upload.single("submission"), submitAssignment);
+router.post(
+  "/:id/submit",
+  authMiddleware,
+  upload.single("submission"),
+  submitAssignment,
+);
 router.post(
   "/:id/grade/:submissionId",
   roleMiddleware("teacher"),
