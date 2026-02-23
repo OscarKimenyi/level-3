@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { Card, ListGroup, Badge, Button, Spinner } from "react-bootstrap";
 import { formatDistanceToNow } from "date-fns";
-import { useNotifications } from "../../context/NotificationContext";
+import useNotifications from "../../context/useNotifications";
 import { useNavigate } from "react-router-dom";
 
 const NotificationsPanel = ({ onClose }) => {
