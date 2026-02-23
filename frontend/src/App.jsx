@@ -7,7 +7,7 @@ import {
 import AuthProvider from "./context/AuthProvider";
 import SocketProvider from "./context/SocketProvider";
 import PrivateRoute from "./components/common/PrivateRoute";
-import { NotificationProvider } from "./context/NotificationContext";
+import { NotificationProvider } from "./context/NotificationProvider";
 
 // Layout
 import Layout from "./components/layout/Layout";
