@@ -10,7 +10,7 @@ import {
 } from "react-bootstrap";
 import useAuth from "../../context/useAuth";
 import useSocket from "../../context/useSocket";
-import { useNotifications } from "../../context/NotificationContext";
+import useNotifications from "../../context/useNotifications";
 import NotificationsPanel from "../notifications/NotificationsPanel";
 
 const Navbar = ({ toggleSidebar }) => {
