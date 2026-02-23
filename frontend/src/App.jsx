@@ -7,6 +7,7 @@ import {
 import AuthProvider from "./context/AuthProvider";
 import SocketProvider from "./context/SocketProvider";
 import PrivateRoute from "./components/common/PrivateRoute";
+import { NotificationProvider } from "./context/NotificationContext";
 
 // Layout
 import Layout from "./components/layout/Layout";
@@ -47,50 +48,58 @@ function App() {
     <Router>
       <AuthProvider>
         <SocketProvider>
-          <Routes>
-            {/* Public Routes */}
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
-            <Route path="/reset-password/:token" element={<ResetPassword />} />
+          <NotificationProvider>
+            <Routes>
+              {/* Public Routes */}
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route
+                path="/reset-password/:token"
+                element={<ResetPassword />}
+              />
 
-            {/* Protected Routes */}
-            <Route
-              element={
-                <PrivateRoute>
-                  <Layout />
-                </PrivateRoute>
-              }
-            >
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
-              <Route path="/dashboard" element={<Dashboard />} />
+              {/* Protected Routes */}
+              <Route
+                element={
+                  <PrivateRoute>
+                    <Layout />
+                  </PrivateRoute>
+                }
+              >
+                <Route
+                  path="/"
+                  element={<Navigate to="/dashboard" replace />}
+                />
+                <Route path="/dashboard" element={<Dashboard />} />
 
-              {/* Student Routes */}
-              <Route path="/students" element={<Students />} />
-              <Route path="/students/:id" element={<StudentDetails />} />
-              <Route path="/profile/student" element={<StudentProfile />} />
+                {/* Student Routes */}
+                <Route path="/students" element={<Students />} />
+                <Route path="/students/:id" element={<StudentDetails />} />
+                <Route path="/profile/student" element={<StudentProfile />} />
 
-              {/* Teacher Routes */}
-              <Route path="/teachers" element={<Teachers />} />
-              <Route path="/profile/teacher" element={<TeacherProfile />} />
+                {/* Teacher Routes */}
+                <Route path="/teachers" element={<Teachers />} />
+                <Route path="/profile/teacher" element={<TeacherProfile />} />
 
-              {/* Course Routes */}
-              <Route path="/courses" element={<Courses />} />
-              <Route path="/courses/:id" element={<CourseDetails />} />
+                {/* Course Routes */}
+                <Route path="/courses" element={<Courses />} />
+                <Route path="/courses/:id" element={<CourseDetails />} />
 
-              {/* Attendance Routes */}
-              <Route path="/attendance" element={<Attendance />} />
+                {/* Attendance Routes */}
+                <Route path="/attendance" element={<Attendance />} />
 
-              {/* Assignment Routes */}
-              <Route path="/assignments" element={<Assignments />} />
+                {/* Assignment Routes */}
+                <Route path="/assignments" element={<Assignments />} />
 
-              {/* Chat Route */}
-              <Route path="/chat" element={<Chat />} />
-            </Route>
+                {/* Chat Route */}
+                <Route path="/chat" element={<Chat />} />
+              </Route>
 
-            {/* Catch all route */}
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
-          </Routes>
+              {/* Catch all route */}
+              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            </Routes>
+          </NotificationProvider>
         </SocketProvider>
       </AuthProvider>
     </Router>
