@@ -1,7 +1,6 @@
 const Course = require("../models/Course");
 const Teacher = require("../models/Teacher");
 const Student = require("../models/Student");
-const { populate } = require("../models/User");
 
 // Get all courses
 const getCourses = async (req, res) => {
@@ -25,14 +24,12 @@ const getCourses = async (req, res) => {
       query.teacher = teacher;
     }
 
-    const courses = await Course.find(query).populate(
-      "teacher",
-      "firstName lastName teacherId",
-    );
-    populate("students", "firstName lastName studentId")
-      .skip((page - 1) * limit)
+    const courses = await Course.find(query)
+      .populate("teacher", "firstName lastName teacherId")
+      .populate("students", "firstName lastName studentId")
+      .skip((parseInt(page) - 1) * parseInt(limit))
       .limit(parseInt(limit))
-      .sort({ createdAt: 1 });
+      .sort({ courseCode: 1 });
 
     const total = await Course.countDocuments(query);
 
@@ -51,6 +48,7 @@ const getCourses = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Server error fetching courses",
+      error: error.message,
     });
   }
 };
@@ -68,6 +66,7 @@ const getCourseById = async (req, res) => {
         message: "Course not found",
       });
     }
+
     res.json({
       success: true,
       data: course,
@@ -81,11 +80,12 @@ const getCourseById = async (req, res) => {
   }
 };
 
-//Get courses for current teacher
+// Get courses for current teacher
 const getTeacherCourses = async (req, res) => {
   try {
     // Find teacher for current user
     const teacher = await Teacher.findOne({ userId: req.user._id });
+
     if (!teacher) {
       return res.status(404).json({
         success: false,
@@ -111,7 +111,7 @@ const getTeacherCourses = async (req, res) => {
   }
 };
 
-//Get students in a course
+// Get students in a course
 const getCourseStudents = async (req, res) => {
   try {
     const course = await Course.findById(req.params.id).populate(
@@ -189,7 +189,7 @@ const createCourse = async (req, res) => {
 // Update course
 const updateCourse = async (req, res) => {
   try {
-    const course = await Course.findById(req.params.id, req.body, {
+    const course = await Course.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
       runValidators: true,
     });
@@ -250,9 +250,9 @@ const deleteCourse = async (req, res) => {
 const enrollStudent = async (req, res) => {
   try {
     const { studentId } = req.body;
-    const CourseId = req.params.id;
+    const courseId = req.params.id;
 
-    const course = await Course.findById(CourseId);
+    const course = await Course.findById(courseId);
     if (!course) {
       return res.status(404).json({
         success: false,
@@ -276,7 +276,7 @@ const enrollStudent = async (req, res) => {
       });
     }
 
-    //check if course has reached max capacity
+    // Check if course has reached max capacity
     if (course.students.length >= course.maxStudents) {
       return res.status(400).json({
         success: false,
@@ -291,12 +291,55 @@ const enrollStudent = async (req, res) => {
     res.json({
       success: true,
       message: "Student enrolled successfully",
+      data: course,
     });
   } catch (error) {
     console.error("Enroll student error:", error);
     res.status(500).json({
       success: false,
       message: "Server error enrolling student",
+    });
+  }
+};
+
+// Remove student from course
+const removeStudent = async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const courseId = req.params.id;
+
+    const course = await Course.findById(courseId);
+    if (!course) {
+      return res.status(404).json({
+        success: false,
+        message: "Course not found",
+      });
+    }
+
+    // Check if student is enrolled
+    if (!course.students.includes(studentId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Student is not enrolled in this course",
+      });
+    }
+
+    // Remove student
+    course.students = course.students.filter(
+      (id) => id.toString() !== studentId,
+    );
+    await course.save();
+
+    res.json({
+      success: true,
+      message: "Student removed successfully",
+      data: course,
+    });
+  } catch (error) {
+    console.error("Remove student error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error removing student",
     });
   }
 };
@@ -310,4 +353,5 @@ module.exports = {
   updateCourse,
   deleteCourse,
   enrollStudent,
+  removeStudent,
 };
