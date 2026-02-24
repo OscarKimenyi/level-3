@@ -28,7 +28,7 @@ const TeacherProfile = () => {
   const [editing, setEditing] = useState(false);
   const [formData, setFormData] = useState({});
 
-  // Wrap fetchTeacherProfile in useCallback
+  // Update the fetchTeacherProfile function
   const fetchTeacherProfile = useCallback(async () => {
     try {
       setLoading(true);
@@ -42,41 +42,76 @@ const TeacherProfile = () => {
         response = await api.get("/teachers/profile");
       }
 
-      setTeacher(response.data.data);
-      setFormData(response.data.data);
+      const teacherData = response.data.data;
+      setTeacher(teacherData);
+      setFormData({
+        firstName: teacherData.firstName || "",
+        lastName: teacherData.lastName || "",
+        contactNumber: teacherData.contactNumber || "",
+        qualification: teacherData.qualification || "",
+        specialization: teacherData.specialization?.join(", ") || "",
+        department: teacherData.department || "",
+      });
 
       // Fetch assigned courses
-      const coursesRes = await api.get(
-        `/courses?teacher=${response.data.data._id}`,
-      );
+      const coursesRes = await api.get(`/courses?teacher=${teacherData._id}`);
       setCourses(coursesRes.data.data || []);
-      setError(""); // Clear any previous errors
+
+      setError("");
     } catch (err) {
       console.error("Error fetching teacher profile:", err);
       setError("Failed to load teacher profile");
     } finally {
       setLoading(false);
     }
-  }, [teacherId]); // Add teacherId as dependency
+  }, [teacherId]);
 
   useEffect(() => {
     fetchTeacherProfile();
   }, [fetchTeacherProfile]); // Now fetchTeacherProfile is stable and can be included
 
+  // Update the handleUpdateProfile function
   const handleUpdateProfile = async () => {
     try {
-      const response = await api.put(`/teachers/${teacher._id}`, formData);
-      setTeacher(response.data.data);
-      setSuccess("Profile updated successfully");
-      setEditing(false);
+      setError("");
 
-      // Clear success message after 3 seconds
-      setTimeout(() => setSuccess(""), 3000);
-    } catch {
-      setError("Failed to update profile");
+      // Validate required fields
+      if (
+        !formData.firstName ||
+        !formData.lastName ||
+        !formData.contactNumber
+      ) {
+        setError("Please fill in all required fields");
+        return;
+      }
+
+      const updateData = {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        contactNumber: formData.contactNumber,
+        qualification: formData.qualification,
+        specialization: formData.specialization
+          .split(",")
+          .map((s) => s.trim())
+          .filter((s) => s),
+        department: formData.department,
+      };
+
+      const response = await api.put(`/teachers/${teacher._id}`, updateData);
+
+      if (response.data.success) {
+        setTeacher(response.data.data);
+        setSuccess("Profile updated successfully");
+        setEditing(false);
+        fetchTeacherProfile();
+
+        setTimeout(() => setSuccess(""), 3000);
+      }
+    } catch (err) {
+      console.error("Error updating profile:", err);
+      setError(err.response?.data?.message || "Failed to update profile");
     }
   };
-
   const handleChange = (e) => {
     setFormData({
       ...formData,

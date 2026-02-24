@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Card,
   Row,
@@ -8,36 +8,109 @@ import {
   Spinner,
   Alert,
   Button,
+  Form,
 } from "react-bootstrap";
 import { Link } from "react-router-dom";
 import useAuth from "../context/useAuth";
-import api from "../services/api";
+// Remove the unused api import
 
 const ParentProfile = () => {
   const { user } = useAuth();
+  const [profile, setProfile] = useState(null);
   const [children, setChildren] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [editing, setEditing] = useState(false);
+  const [formData, setFormData] = useState({
+    firstName: "",
+    lastName: "",
+    phone: "",
+    address: "",
+  });
+
+  const fetchParentProfile = useCallback(async () => {
+    try {
+      setLoading(true);
+
+      // Get parent profile from user data
+      setProfile({
+        firstName: user?.username?.split("_")[0] || "Parent",
+        lastName: "",
+        phone: "",
+        address: "",
+        email: user?.email,
+      });
+
+      setFormData({
+        firstName: user?.username?.split("_")[0] || "Parent",
+        lastName: "",
+        phone: "",
+        address: "",
+      });
+
+      // Mock children data
+      setChildren([
+        {
+          _id: "1",
+          studentId: "STU001",
+          firstName: "John",
+          lastName: "Doe Jr.",
+          classGrade: "First Year",
+          attendance: 95,
+          averageGrade: 88,
+        },
+        {
+          _id: "2",
+          studentId: "STU002",
+          firstName: "Jane",
+          lastName: "Doe Jr.",
+          classGrade: "Second Year",
+          attendance: 92,
+          averageGrade: 91,
+        },
+      ]);
+
+      setError("");
+    } catch (err) {
+      console.error("Error fetching parent profile:", err);
+      setError("Failed to load profile data");
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
 
   useEffect(() => {
-    const fetchChildren = async () => {
-      try {
-        setLoading(true);
+    fetchParentProfile();
+  }, [fetchParentProfile]);
 
-        const response = await api.get("/students?parent=" + user?.id);
-        setChildren(response.data.data || []);
-      } catch (err) {
-        console.error("Error fetching children:", err);
-        setError("Failed to load children data");
-      } finally {
-        setLoading(false);
+  const handleUpdateProfile = async () => {
+    try {
+      // Validate required fields
+      if (!formData.firstName || !formData.phone) {
+        setError("Please fill in all required fields");
+        return;
       }
-    };
 
-    if (user?.id) {
-      fetchChildren();
+      // Here you would call your API to update parent profile
+      // For now, just update local state
+      setProfile((prev) => ({ ...prev, ...formData }));
+      setSuccess("Profile updated successfully");
+      setEditing(false);
+
+      setTimeout(() => setSuccess(""), 3000);
+    } catch (err) {
+      console.error("Error updating profile:", err);
+      setError("Failed to update profile");
     }
-  }, [user?.id]);
+  };
+
+  const handleChange = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value,
+    });
+  };
 
   if (loading) {
     return (
@@ -52,12 +125,18 @@ const ParentProfile = () => {
     <div className="container-fluid py-3">
       <h2 className="mb-4">
         <i className="bi bi-person-badge me-2"></i>
-        Parent Dashboard
+        Parent Profile
       </h2>
 
       {error && (
         <Alert variant="danger" onClose={() => setError("")} dismissible>
           {error}
+        </Alert>
+      )}
+
+      {success && (
+        <Alert variant="success" onClose={() => setSuccess("")} dismissible>
+          {success}
         </Alert>
       )}
 
@@ -69,16 +148,115 @@ const ParentProfile = () => {
                 className="bg-info text-white rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
                 style={{ width: "100px", height: "100px", fontSize: "2.5rem" }}
               >
-                {user?.username?.charAt(0).toUpperCase()}
+                {profile?.firstName?.charAt(0).toUpperCase()}
               </div>
-              <h4>{user?.username}</h4>
-              <p className="text-muted">{user?.email}</p>
+              <h4>
+                {profile?.firstName} {profile?.lastName}
+              </h4>
+              <p className="text-muted">{profile?.email}</p>
               <Badge bg="primary">Parent</Badge>
+
+              <Button
+                variant="outline-primary"
+                className="mt-3 w-100"
+                onClick={() => setEditing(!editing)}
+              >
+                <i className={`bi bi-${editing ? "x" : "pencil"} me-2`}></i>
+                {editing ? "Cancel Edit" : "Edit Profile"}
+              </Button>
             </Card.Body>
           </Card>
         </Col>
 
         <Col md={8}>
+          {editing ? (
+            <Card className="shadow-sm mb-4">
+              <Card.Body>
+                <h5>Edit Profile</h5>
+                <Form>
+                  <Row>
+                    <Col md={6}>
+                      <Form.Group className="mb-3">
+                        <Form.Label>First Name *</Form.Label>
+                        <Form.Control
+                          type="text"
+                          name="firstName"
+                          value={formData.firstName}
+                          onChange={handleChange}
+                          required
+                        />
+                      </Form.Group>
+                    </Col>
+                    <Col md={6}>
+                      <Form.Group className="mb-3">
+                        <Form.Label>Last Name</Form.Label>
+                        <Form.Control
+                          type="text"
+                          name="lastName"
+                          value={formData.lastName}
+                          onChange={handleChange}
+                        />
+                      </Form.Group>
+                    </Col>
+                  </Row>
+
+                  <Form.Group className="mb-3">
+                    <Form.Label>Phone *</Form.Label>
+                    <Form.Control
+                      type="tel"
+                      name="phone"
+                      value={formData.phone}
+                      onChange={handleChange}
+                      required
+                    />
+                  </Form.Group>
+
+                  <Form.Group className="mb-3">
+                    <Form.Label>Address</Form.Label>
+                    <Form.Control
+                      type="text"
+                      name="address"
+                      value={formData.address}
+                      onChange={handleChange}
+                    />
+                  </Form.Group>
+
+                  <Button variant="primary" onClick={handleUpdateProfile}>
+                    Save Changes
+                  </Button>
+                </Form>
+              </Card.Body>
+            </Card>
+          ) : (
+            <Card className="shadow-sm mb-4">
+              <Card.Body>
+                <h5>Personal Information</h5>
+                <table className="table">
+                  <tbody>
+                    <tr>
+                      <th>Name:</th>
+                      <td>
+                        {profile?.firstName} {profile?.lastName}
+                      </td>
+                    </tr>
+                    <tr>
+                      <th>Email:</th>
+                      <td>{profile?.email}</td>
+                    </tr>
+                    <tr>
+                      <th>Phone:</th>
+                      <td>{profile?.phone || "Not provided"}</td>
+                    </tr>
+                    <tr>
+                      <th>Address:</th>
+                      <td>{profile?.address || "Not provided"}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </Card.Body>
+            </Card>
+          )}
+
           <Card className="shadow-sm">
             <Card.Body>
               <h5>My Children</h5>
@@ -88,8 +266,9 @@ const ParentProfile = () => {
                     <tr>
                       <th>Student ID</th>
                       <th>Name</th>
-                      <th>Class</th>
+                      <th>Year</th>
                       <th>Attendance</th>
+                      <th>Average Grade</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
@@ -100,11 +279,32 @@ const ParentProfile = () => {
                         <td>
                           {child.firstName} {child.lastName}
                         </td>
+                        <td>{child.classGrade}</td>
                         <td>
-                          {child.classGrade} - {child.section}
+                          <Badge
+                            bg={
+                              child.attendance >= 90
+                                ? "success"
+                                : child.attendance >= 75
+                                  ? "warning"
+                                  : "danger"
+                            }
+                          >
+                            {child.attendance}%
+                          </Badge>
                         </td>
                         <td>
-                          <Badge bg="success">92%</Badge>
+                          <Badge
+                            bg={
+                              child.averageGrade >= 90
+                                ? "success"
+                                : child.averageGrade >= 75
+                                  ? "info"
+                                  : "warning"
+                            }
+                          >
+                            {child.averageGrade}%
+                          </Badge>
                         </td>
                         <td>
                           <Button

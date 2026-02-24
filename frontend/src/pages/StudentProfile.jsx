@@ -11,19 +11,29 @@ import {
   Form,
   Alert,
   Spinner,
-  Image,
 } from "react-bootstrap";
 import useAuth from "../context/useAuth";
-import axios from "axios";
+import api from "../services/api";
 
 const StudentProfile = () => {
   const { user } = useAuth();
   const [student, setStudent] = useState(null);
   const [courses, setCourses] = useState([]);
-  const [attendance, setAttendance] = useState([]);
-  const [grades, setGrades] = useState([]);
+  const [attendance] = useState([
+    // Remove setAttendance
+    { course: "Mathematics", present: 45, absent: 5, percentage: 90 },
+    { course: "Physics", present: 42, absent: 8, percentage: 84 },
+    { course: "Chemistry", present: 48, absent: 2, percentage: 96 },
+  ]);
+  const [grades] = useState([
+    // Remove setGrades
+    { course: "Mathematics", assignment: "Mid-term", grade: "A", score: 95 },
+    { course: "Physics", assignment: "Lab Report", grade: "B+", score: 87 },
+    { course: "Chemistry", assignment: "Final Exam", grade: "A-", score: 90 },
+  ]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState({});
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
@@ -37,41 +47,43 @@ const StudentProfile = () => {
   const fetchStudentProfile = async () => {
     try {
       setLoading(true);
-      const [profileRes, coursesRes] = await Promise.all([
-        axios.get("/students/profile"),
-        axios.get("/courses"),
-      ]);
 
-      setStudent(profileRes.data.data);
-      setFormData(profileRes.data.data);
-      setCourses(coursesRes.data.data?.slice(0, 5) || []);
-
-      // Mock attendance data
-      setAttendance([
-        { course: "Mathematics", present: 45, absent: 5, percentage: 90 },
-        { course: "Physics", present: 42, absent: 8, percentage: 84 },
-        { course: "Chemistry", present: 48, absent: 2, percentage: 96 },
-      ]);
-
-      // Mock grades data
-      setGrades([
-        {
-          course: "Mathematics",
-          assignment: "Mid-term",
-          grade: "A",
-          score: 95,
+      const profileRes = await api.get("/students/profile");
+      const studentData = profileRes.data.data;
+      setStudent(studentData);
+      setFormData({
+        firstName: studentData.firstName || "",
+        lastName: studentData.lastName || "",
+        phone: studentData.phone || "",
+        classGrade: studentData.classGrade || "",
+        gender: studentData.gender || "Male",
+        dateOfBirth: studentData.dateOfBirth
+          ? new Date(studentData.dateOfBirth).toISOString().split("T")[0]
+          : "",
+        address: studentData.address || "",
+        emergencyContact: studentData.emergencyContact || {
+          name: "",
+          phone: "",
+          relationship: "",
         },
-        { course: "Physics", assignment: "Lab Report", grade: "B+", score: 87 },
-        {
-          course: "Chemistry",
-          assignment: "Final Exam",
-          grade: "A-",
-          score: 90,
-        },
-      ]);
-    } catch (error) {
-      console.error("Error fetching profile:", error);
-      setError("Failed to load profile data");
+      });
+
+      // Get enrolled courses
+      const coursesRes = await api.get("/courses");
+      const enrolledCourses =
+        coursesRes.data.data?.filter((course) =>
+          course.students?.some((s) => s._id === studentData._id),
+        ) || [];
+      setCourses(enrolledCourses);
+
+      setError("");
+    } catch (err) {
+      console.error("Error fetching profile:", err);
+      if (err.response?.status === 404) {
+        setError("Student profile not found. Please contact administrator.");
+      } else {
+        setError("Failed to load profile data");
+      }
     } finally {
       setLoading(false);
     }
@@ -79,12 +91,45 @@ const StudentProfile = () => {
 
   const handleUpdateProfile = async () => {
     try {
-      await axios.put("/auth/profile", formData);
-      setStudent(formData);
-      setSuccess("Profile updated successfully");
-      setEditing(false);
-    } catch {
-      setError("Failed to update profile");
+      setSubmitting(true);
+      setError("");
+
+      if (!formData.firstName || !formData.lastName || !formData.phone) {
+        setError("Please fill in all required fields");
+        setSubmitting(false);
+        return;
+      }
+
+      const response = await api.put(`/students/${student._id}`, {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        phone: formData.phone,
+        classGrade: formData.classGrade,
+        gender: formData.gender,
+        dateOfBirth: formData.dateOfBirth,
+        address: formData.address,
+        emergencyContact: formData.emergencyContact,
+      });
+
+      if (response.data.success) {
+        setStudent(response.data.data);
+        setSuccess("Profile updated successfully");
+        setEditing(false);
+        fetchStudentProfile();
+
+        setTimeout(() => setSuccess(""), 3000);
+      }
+    } catch (err) {
+      console.error("Error updating profile:", err);
+      if (err.response?.status === 403) {
+        setError("You do not have permission to update this profile.");
+      } else if (err.response?.status === 404) {
+        setError("Student profile not found.");
+      } else {
+        setError(err.response?.data?.message || "Failed to update profile");
+      }
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -118,55 +163,67 @@ const StudentProfile = () => {
 
   return (
     <div className="container-fluid py-3">
+      <h2 className="mb-4">
+        <i className="bi bi-person-badge me-2"></i>
+        Student Profile
+      </h2>
+
+      {error && (
+        <Alert variant="danger" onClose={() => setError("")} dismissible>
+          {error}
+        </Alert>
+      )}
+
+      {success && (
+        <Alert variant="success" onClose={() => setSuccess("")} dismissible>
+          {success}
+        </Alert>
+      )}
+
       <Row>
         <Col md={4}>
           <Card className="shadow-sm mb-4">
             <Card.Body className="text-center">
-              <Image
-                src={`https://ui-avatars.com/api/?name=${student?.firstName}+${student?.lastName}&background=007bff&color=fff&size=150`}
-                roundedCircle
-                className="mb-3"
-                style={{ width: "150px", height: "150px" }}
-              />
+              <div
+                className="bg-primary text-white rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
+                style={{ width: "100px", height: "100px", fontSize: "2.5rem" }}
+              >
+                {student?.firstName?.[0]}
+                {student?.lastName?.[0]}
+              </div>
               <h4>
                 {student?.firstName} {student?.lastName}
               </h4>
               <p className="text-muted">{student?.studentId}</p>
+              <Badge
+                bg={student?.status === "active" ? "success" : "secondary"}
+              >
+                {student?.status}
+              </Badge>
 
-              <div className="d-grid gap-2">
-                <Button
-                  variant={editing ? "secondary" : "primary"}
-                  onClick={() =>
-                    editing ? setEditing(false) : setEditing(true)
-                  }
-                >
-                  <i className={`bi bi-${editing ? "x" : "pencil"} me-2`}></i>
-                  {editing ? "Cancel Edit" : "Edit Profile"}
-                </Button>
-              </div>
+              <Button
+                variant="outline-primary"
+                className="mt-3 w-100"
+                onClick={() => setEditing(!editing)}
+              >
+                <i className={`bi bi-${editing ? "x" : "pencil"} me-2`}></i>
+                {editing ? "Cancel Edit" : "Edit Profile"}
+              </Button>
             </Card.Body>
           </Card>
 
           <Card className="shadow-sm">
             <Card.Body>
-              <Card.Title>Quick Stats</Card.Title>
+              <h6>Quick Stats</h6>
               <ul className="list-unstyled">
-                <li className="mb-3">
+                <li className="mb-2">
                   <strong>Enrolled Courses:</strong> {courses.length}
                 </li>
-                <li className="mb-3">
+                <li className="mb-2">
                   <strong>Attendance Rate:</strong> 92%
                 </li>
-                <li className="mb-3">
-                  <strong>Average Grade:</strong> 88%
-                </li>
                 <li>
-                  <strong>Status:</strong>{" "}
-                  <Badge
-                    bg={student?.status === "active" ? "success" : "secondary"}
-                  >
-                    {student?.status}
-                  </Badge>
+                  <strong>Average Grade:</strong> 88%
                 </li>
               </ul>
             </Card.Body>
@@ -194,26 +251,6 @@ const StudentProfile = () => {
               </Card.Header>
 
               <Card.Body>
-                {success && (
-                  <Alert
-                    variant="success"
-                    onClose={() => setSuccess("")}
-                    dismissible
-                  >
-                    {success}
-                  </Alert>
-                )}
-
-                {error && (
-                  <Alert
-                    variant="danger"
-                    onClose={() => setError("")}
-                    dismissible
-                  >
-                    {error}
-                  </Alert>
-                )}
-
                 <Tab.Content>
                   <Tab.Pane eventKey="personal">
                     {editing ? (
@@ -255,16 +292,45 @@ const StudentProfile = () => {
 
                         <Form.Group className="mb-3">
                           <Form.Label>Year of Study</Form.Label>
-                          <Form.Control
-                            type="text"
+                          <Form.Select
                             name="classGrade"
                             value={formData.classGrade || ""}
                             onChange={handleChange}
-                          />
+                          >
+                            <option value="">Select Year</option>
+                            <option value="First Year">First Year</option>
+                            <option value="Second Year">Second Year</option>
+                            <option value="Third Year">Third Year</option>
+                            <option value="Fourth Year">Fourth Year</option>
+                          </Form.Select>
                         </Form.Group>
 
-                        <Button variant="primary" onClick={handleUpdateProfile}>
-                          Save Changes
+                        <Form.Group className="mb-3">
+                          <Form.Label>Gender</Form.Label>
+                          <Form.Select
+                            name="gender"
+                            value={formData.gender || "Male"}
+                            onChange={handleChange}
+                          >
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                            <option value="Other">Other</option>
+                          </Form.Select>
+                        </Form.Group>
+
+                        <Button
+                          variant="primary"
+                          onClick={handleUpdateProfile}
+                          disabled={submitting}
+                        >
+                          {submitting ? (
+                            <>
+                              <span className="spinner-border spinner-border-sm me-2"></span>
+                              Saving...
+                            </>
+                          ) : (
+                            "Save Changes"
+                          )}
                         </Button>
                       </Form>
                     ) : (
@@ -288,17 +354,20 @@ const StudentProfile = () => {
                           <strong>Email:</strong> {user?.email}
                         </p>
                         <p>
-                          <strong>Phone:</strong> {student?.phone}
+                          <strong>Phone:</strong> {student?.phone || "N/A"}
                         </p>
                         <p>
-                          <strong>year of Study:</strong> {student?.classGrade}
+                          <strong>Year of Study:</strong>{" "}
+                          {student?.classGrade || "N/A"}
                         </p>
                         <p>
                           <strong>Date of Birth:</strong>{" "}
-                          {new Date(student?.dateOfBirth).toLocaleDateString()}
+                          {student?.dateOfBirth
+                            ? new Date(student.dateOfBirth).toLocaleDateString()
+                            : "N/A"}
                         </p>
                         <p>
-                          <strong>Gender:</strong> {student?.gender}
+                          <strong>Gender:</strong> {student?.gender || "N/A"}
                         </p>
                       </div>
                     )}
@@ -332,6 +401,13 @@ const StudentProfile = () => {
                             </td>
                           </tr>
                         ))}
+                        {courses.length === 0 && (
+                          <tr>
+                            <td colSpan="4" className="text-center text-muted">
+                              No courses enrolled
+                            </td>
+                          </tr>
+                        )}
                       </tbody>
                     </Table>
                   </Tab.Pane>
