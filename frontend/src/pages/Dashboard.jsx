@@ -13,6 +13,7 @@ import {
   Alert,
   ListGroup,
 } from "react-bootstrap";
+//import { useNavigate } from "react-router-dom";
 import useAuth from "../context/useAuth";
 import api from "../services/api";
 import {
@@ -26,6 +27,7 @@ import {
   ArcElement,
   PointElement,
   LineElement,
+  Filler,
 } from "chart.js";
 import { Bar, Pie, Line } from "react-chartjs-2";
 
@@ -39,13 +41,41 @@ ChartJS.register(
   ArcElement,
   PointElement,
   LineElement,
+  Filler,
 );
 
 const Dashboard = () => {
   const { user } = useAuth();
+  //const navigate = useNavigate();
   const [stats, setStats] = useState(null);
   const [recentActivity, setRecentActivity] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Teacher dashboard state
+  const [teacherData, setTeacherData] = useState({
+    stats: {
+      activeCourses: 0,
+      pendingGrading: 0,
+      unreadMessages: 0,
+      todayClasses: 0,
+    },
+    performanceTrend: [],
+    todaySchedule: [],
+    upcomingAssignments: [],
+    recentSubmissions: [],
+  });
+
+  // Student dashboard state
+  const [studentData, setStudentData] = useState({
+    stats: {
+      enrolledCourses: 0,
+      attendanceRate: 0,
+      pendingAssignments: 0,
+      averageGrade: 0,
+    },
+    upcomingAssignments: [],
+    recentGrades: [],
+  });
 
   // Modal states
   const [showStudentModal, setShowStudentModal] = useState(false);
@@ -60,7 +90,6 @@ const Dashboard = () => {
     email: "",
     phone: "",
     classGrade: "",
-    section: "",
     gender: "Male",
     dateOfBirth: "",
   });
@@ -96,20 +125,35 @@ const Dashboard = () => {
   const [success, setSuccess] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  const cleanUsername = (username) => {
-    if (!username) return "User";
-    // Remove numbers and underscores at the end
-    return username.replace(/[0-9_]+$/, "");
-  };
+  // Fetch teacher dashboard data
+  const fetchTeacherDashboard = useCallback(async () => {
+    try {
+      const response = await api.get("/dashboard/teacher");
+      if (response.data.success) {
+        setTeacherData(response.data.data);
+      }
+    } catch (err) {
+      console.error("Error fetching teacher dashboard:", err);
+    }
+  }, []);
 
-  // Wrap fetchDashboardData in useCallback
+  // Fetch student dashboard data
+  const fetchStudentDashboard = useCallback(async () => {
+    try {
+      const response = await api.get("/dashboard/student");
+      if (response.data.success) {
+        setStudentData(response.data.data);
+      }
+    } catch (err) {
+      console.error("Error fetching student dashboard:", err);
+    }
+  }, []);
+
   const fetchDashboardData = useCallback(async () => {
     try {
       setLoading(true);
 
-      // Only fetch data based on user role
       if (user?.role === "admin") {
-        // Admin can see all
         const [studentsRes, coursesRes, teachersRes] = await Promise.all([
           api
             .get("/students?limit=5")
@@ -131,44 +175,10 @@ const Dashboard = () => {
           recentTeachers: teachersRes.data.data || [],
         });
       } else if (user?.role === "teacher") {
-        // Teacher sees their courses and students in those courses
-        const [coursesRes] = await Promise.all([
-          api
-            .get("/courses/my-courses?limit=5")
-            .catch(() => ({ data: { data: [] } })),
-        ]);
-
-        // Calculate total students from courses
-        const totalStudents =
-          coursesRes.data.data?.reduce(
-            (acc, course) => acc + (course.students?.length || 0),
-            0,
-          ) || 0;
-
-        setStats({
-          totalStudents,
-          totalCourses: coursesRes.data.data?.length || 0,
-          totalTeachers: 1, // The teacher themselves
-          recentCourses: coursesRes.data.data || [],
-        });
+        await fetchTeacherDashboard();
       } else if (user?.role === "student") {
-        // Student sees their enrolled courses
-        const [coursesRes] = await Promise.all([
-          api.get("/courses?limit=5").catch(() => ({ data: { data: [] } })),
-        ]);
-
-        setStats({
-          totalStudents: 1, // The student themselves
-          totalCourses: coursesRes.data.data?.length || 0,
-          totalTeachers:
-            coursesRes.data.data?.reduce(
-              (acc, course) => acc + (course.teacher ? 1 : 0),
-              0,
-            ) || 0,
-          recentCourses: coursesRes.data.data || [],
-        });
+        await fetchStudentDashboard();
       } else if (user?.role === "parent") {
-        // Parent sees their children's data
         setStats({
           totalStudents: 2,
           totalCourses: 5,
@@ -186,18 +196,10 @@ const Dashboard = () => {
       ]);
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
-
-      if (error.response?.status !== 403) {
-        console.error("Unexpected error:", error);
-      }
     } finally {
       setLoading(false);
     }
-  }, [user?.role]);
-
-  useEffect(() => {
-    fetchDashboardData();
-  }, [fetchDashboardData]);
+  }, [user?.role, fetchTeacherDashboard, fetchStudentDashboard]);
 
   // Fetch teachers for admin
   const fetchTeachers = useCallback(async () => {
@@ -212,16 +214,16 @@ const Dashboard = () => {
   }, [user?.role]);
 
   useEffect(() => {
+    fetchDashboardData();
     fetchTeachers();
-  }, [fetchTeachers]);
+  }, [fetchDashboardData, fetchTeachers]);
 
-  // Handle Add Student in Dashboard
+  // Handle Add Student
   const handleAddStudent = async () => {
     try {
       setSubmitting(true);
       setError("");
 
-      // Validate form
       if (
         !studentForm.firstName ||
         !studentForm.lastName ||
@@ -239,11 +241,9 @@ const Dashboard = () => {
         return;
       }
 
-      // Create a unique username
       const baseUsername = studentForm.email.split("@")[0];
       const uniqueUsername = `${baseUsername}_${Date.now()}`;
 
-      // Create user account FIRST
       const userResponse = await api.post("/auth/register", {
         username: uniqueUsername,
         email: studentForm.email,
@@ -255,7 +255,6 @@ const Dashboard = () => {
         throw new Error(userResponse.data.message || "Failed to create user");
       }
 
-      // THEN create student profile
       const studentData = {
         userId: userResponse.data.user.id,
         firstName: studentForm.firstName,
@@ -293,13 +292,13 @@ const Dashboard = () => {
       setSubmitting(true);
       setError("");
 
-      // Validate form
       if (
         !courseForm.courseCode ||
         !courseForm.courseName ||
         !courseForm.teacher
       ) {
         setError("Please fill in all required fields");
+        setSubmitting(false);
         return;
       }
 
@@ -308,10 +307,11 @@ const Dashboard = () => {
       setSuccess("Course created successfully!");
       setShowCourseModal(false);
       resetCourseForm();
-      fetchDashboardData(); // Refresh stats
+      fetchDashboardData();
 
       setTimeout(() => setSuccess(""), 3000);
     } catch (err) {
+      console.error("Error creating course:", err);
       setError(err.response?.data?.message || "Failed to create course");
     } finally {
       setSubmitting(false);
@@ -324,21 +324,22 @@ const Dashboard = () => {
       setSubmitting(true);
       setError("");
 
-      // Validate form
       if (!notificationForm.title || !notificationForm.message) {
         setError("Please fill in all required fields");
+        setSubmitting(false);
         return;
       }
 
-      // In a real app, you'd send to your notification API
-      // For now, we'll show a success message
+      await api.post("/notifications/send", notificationForm);
+
       setSuccess("Notification sent successfully!");
       setShowNotificationModal(false);
       resetNotificationForm();
 
       setTimeout(() => setSuccess(""), 3000);
-    } catch {
-      setError("Failed to send notification");
+    } catch (err) {
+      console.error("Error sending notification:", err);
+      setError(err.response?.data?.message || "Failed to send notification");
     } finally {
       setSubmitting(false);
     }
@@ -346,7 +347,6 @@ const Dashboard = () => {
 
   // Handle Generate Report
   const handleGenerateReport = () => {
-    // Create a sample report
     const reportData = {
       title: "Student Management Report",
       generatedAt: new Date().toLocaleString(),
@@ -356,10 +356,8 @@ const Dashboard = () => {
       recentActivities: recentActivity,
     };
 
-    // Convert to CSV
     const csv = convertToCSV(reportData);
 
-    // Download as file
     const blob = new Blob([csv], { type: "text/csv" });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -372,7 +370,6 @@ const Dashboard = () => {
     setTimeout(() => setSuccess(""), 3000);
   };
 
-  // Helper function to convert to CSV
   const convertToCSV = (data) => {
     const headers = ["Metric", "Value"];
     const rows = [
@@ -388,7 +385,6 @@ const Dashboard = () => {
     return [headers, ...rows].map((row) => row.join(",")).join("\n");
   };
 
-  // Reset forms
   const resetStudentForm = () => {
     setStudentForm({
       firstName: "",
@@ -396,7 +392,6 @@ const Dashboard = () => {
       email: "",
       phone: "",
       classGrade: "",
-      section: "",
       gender: "Male",
       dateOfBirth: "",
     });
@@ -410,7 +405,16 @@ const Dashboard = () => {
       credits: 3,
       teacher: "",
       semester: "Fall 2024",
-      academicYear: "2023-2024",
+      academicYear: "2024-2025",
+      maxStudents: 30,
+      schedule: [
+        {
+          day: "Monday",
+          startTime: "09:00",
+          endTime: "10:30",
+          room: "",
+        },
+      ],
     });
   };
 
@@ -423,19 +427,30 @@ const Dashboard = () => {
     });
   };
 
-  const getRoleBasedContent = () => {
-    switch (user?.role) {
-      case "admin":
-        return adminDashboard();
-      case "teacher":
-        return teacherDashboard();
-      case "student":
-        return studentDashboard();
-      case "parent":
-        return parentDashboard();
-      default:
-        return <div>Welcome!</div>;
-    }
+  const addScheduleRow = () => {
+    setCourseForm({
+      ...courseForm,
+      schedule: [
+        ...courseForm.schedule,
+        { day: "Monday", startTime: "09:00", endTime: "10:30", room: "" },
+      ],
+    });
+  };
+
+  const removeScheduleRow = (index) => {
+    const newSchedule = courseForm.schedule.filter((_, i) => i !== index);
+    setCourseForm({ ...courseForm, schedule: newSchedule });
+  };
+
+  const updateScheduleRow = (index, field, value) => {
+    const newSchedule = [...courseForm.schedule];
+    newSchedule[index][field] = value;
+    setCourseForm({ ...courseForm, schedule: newSchedule });
+  };
+
+  const cleanUsername = (username) => {
+    if (!username) return "User";
+    return username.replace(/[0-9_]+$/, "");
   };
 
   const adminDashboard = () => {
@@ -562,18 +577,13 @@ const Dashboard = () => {
             <Card className="shadow-sm chart-card">
               <Card.Body>
                 <Card.Title>Student Growth</Card.Title>
-                <div style={{ height: "300px", position: "relative" }}>
+                <div style={{ height: "300px" }}>
                   <Bar
-                    key={`bar-${JSON.stringify(barData)}`} // Add this key
+                    key={`bar-${JSON.stringify(barData)}`}
                     data={barData}
                     options={{
                       responsive: true,
                       maintainAspectRatio: false,
-                      plugins: {
-                        legend: {
-                          position: "top",
-                        },
-                      },
                     }}
                   />
                 </div>
@@ -584,9 +594,9 @@ const Dashboard = () => {
             <Card className="shadow-sm chart-card">
               <Card.Body>
                 <Card.Title>Student Status</Card.Title>
-                <div style={{ height: "300px", position: "relative" }}>
+                <div style={{ height: "300px" }}>
                   <Pie
-                    key={`pie-${JSON.stringify(pieData)}`} // Add this key
+                    key={`pie-${JSON.stringify(pieData)}`}
                     data={pieData}
                     options={{
                       responsive: true,
@@ -669,513 +679,20 @@ const Dashboard = () => {
             </Card>
           </Col>
         </Row>
-
-        {/* Add Student Modal */}
-        <Modal
-          show={showStudentModal}
-          onHide={() => setShowStudentModal(false)}
-          size="lg"
-        >
-          <Modal.Header closeButton>
-            <Modal.Title>Add New Student</Modal.Title>
-          </Modal.Header>
-          <Modal.Body>
-            <Form>
-              <Row>
-                <Col md={6}>
-                  <Form.Group className="mb-3">
-                    <Form.Label>First Name *</Form.Label>
-                    <Form.Control
-                      type="text"
-                      value={studentForm.firstName}
-                      onChange={(e) =>
-                        setStudentForm({
-                          ...studentForm,
-                          firstName: e.target.value,
-                        })
-                      }
-                      required
-                    />
-                  </Form.Group>
-                </Col>
-                <Col md={6}>
-                  <Form.Group className="mb-3">
-                    <Form.Label>Last Name *</Form.Label>
-                    <Form.Control
-                      type="text"
-                      value={studentForm.lastName}
-                      onChange={(e) =>
-                        setStudentForm({
-                          ...studentForm,
-                          lastName: e.target.value,
-                        })
-                      }
-                      required
-                    />
-                  </Form.Group>
-                </Col>
-              </Row>
-
-              <Row>
-                <Col md={6}>
-                  <Form.Group className="mb-3">
-                    <Form.Label>Email *</Form.Label>
-                    <Form.Control
-                      type="email"
-                      value={studentForm.email}
-                      onChange={(e) =>
-                        setStudentForm({
-                          ...studentForm,
-                          email: e.target.value,
-                        })
-                      }
-                      required
-                    />
-                  </Form.Group>
-                </Col>
-                <Col md={6}>
-                  <Form.Group className="mb-3">
-                    <Form.Label>Phone *</Form.Label>
-                    <Form.Control
-                      type="tel"
-                      value={studentForm.phone}
-                      onChange={(e) =>
-                        setStudentForm({
-                          ...studentForm,
-                          phone: e.target.value,
-                        })
-                      }
-                      required
-                    />
-                  </Form.Group>
-                </Col>
-              </Row>
-
-              <Row>
-                <Col md={6}>
-                  <Form.Group className="mb-3">
-                    <Form.Label>Year of Study *</Form.Label>
-                    <Form.Select
-                      value={studentForm.classGrade}
-                      onChange={(e) =>
-                        setStudentForm({
-                          ...studentForm,
-                          classGrade: e.target.value,
-                        })
-                      }
-                      required
-                    >
-                      <option value="">Select Year</option>
-                      <option value="">Select Year</option>
-                      <option value="First Year">First Year</option>
-                      <option value="Second Year">Second Year</option>
-                      <option value="Third Year">Third Year</option>
-                      <option value="Fourth Year">Fourth Year</option>
-                    </Form.Select>
-                  </Form.Group>
-                </Col>
-                {/* <Col md={6}>
-                  <Form.Group className="mb-3">
-                    <Form.Label>Section</Form.Label>
-                    <Form.Control
-                      type="text"
-                      value={studentForm.section}
-                      onChange={(e) =>
-                        setStudentForm({
-                          ...studentForm,
-                          section: e.target.value,
-                        })
-                      }
-                      placeholder="e.g., A"
-                    />
-                  </Form.Group>
-                </Col> */}
-              </Row>
-
-              <Row>
-                <Col md={6}>
-                  <Form.Group className="mb-3">
-                    <Form.Label>Gender</Form.Label>
-                    <Form.Select
-                      value={studentForm.gender}
-                      onChange={(e) =>
-                        setStudentForm({
-                          ...studentForm,
-                          gender: e.target.value,
-                        })
-                      }
-                    >
-                      <option value="Male">Male</option>
-                      <option value="Female">Female</option>
-                      <option value="Other">Other</option>
-                    </Form.Select>
-                  </Form.Group>
-                </Col>
-                <Col md={6}>
-                  <Form.Group className="mb-3">
-                    <Form.Label>Date of Birth</Form.Label>
-                    <Form.Control
-                      type="date"
-                      value={studentForm.dateOfBirth}
-                      onChange={(e) =>
-                        setStudentForm({
-                          ...studentForm,
-                          dateOfBirth: e.target.value,
-                        })
-                      }
-                    />
-                  </Form.Group>
-                </Col>
-              </Row>
-
-              <Alert variant="info" className="mb-0">
-                <i className="bi bi-info-circle me-2"></i>
-                Default password will be: <strong>student123</strong>
-              </Alert>
-            </Form>
-          </Modal.Body>
-          <Modal.Footer>
-            <Button
-              variant="secondary"
-              onClick={() => setShowStudentModal(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              onClick={handleAddStudent}
-              disabled={submitting}
-            >
-              {submitting ? (
-                <>
-                  <span className="spinner-border spinner-border-sm me-2"></span>
-                  Adding...
-                </>
-              ) : (
-                "Add Student"
-              )}
-            </Button>
-          </Modal.Footer>
-        </Modal>
-
-        {/* Create Course Modal */}
-        <Modal
-          show={showCourseModal}
-          onHide={() => setShowCourseModal(false)}
-          size="lg"
-        >
-          <Modal.Header closeButton>
-            <Modal.Title>Create New Course</Modal.Title>
-          </Modal.Header>
-          <Modal.Body>
-            <Form>
-              <Row>
-                <Col md={6}>
-                  <Form.Group className="mb-3">
-                    <Form.Label>Course Code *</Form.Label>
-                    <Form.Control
-                      type="text"
-                      value={courseForm.courseCode}
-                      onChange={(e) =>
-                        setCourseForm({
-                          ...courseForm,
-                          courseCode: e.target.value.toUpperCase(),
-                        })
-                      }
-                      placeholder="e.g., CS101"
-                      required
-                    />
-                  </Form.Group>
-                </Col>
-                <Col md={6}>
-                  <Form.Group className="mb-3">
-                    <Form.Label>Course Name *</Form.Label>
-                    <Form.Control
-                      type="text"
-                      value={courseForm.courseName}
-                      onChange={(e) =>
-                        setCourseForm({
-                          ...courseForm,
-                          courseName: e.target.value,
-                        })
-                      }
-                      placeholder="e.g., Introduction to Programming"
-                      required
-                    />
-                  </Form.Group>
-                </Col>
-              </Row>
-
-              <Form.Group className="mb-3">
-                <Form.Label>Description</Form.Label>
-                <Form.Control
-                  as="textarea"
-                  rows={3}
-                  value={courseForm.description}
-                  onChange={(e) =>
-                    setCourseForm({
-                      ...courseForm,
-                      description: e.target.value,
-                    })
-                  }
-                  placeholder="Course description"
-                />
-              </Form.Group>
-
-              <Row>
-                <Col md={4}>
-                  <Form.Group className="mb-3">
-                    <Form.Label>Credits</Form.Label>
-                    <Form.Select
-                      value={courseForm.credits}
-                      onChange={(e) =>
-                        setCourseForm({
-                          ...courseForm,
-                          credits: parseInt(e.target.value),
-                        })
-                      }
-                    >
-                      {[1, 2, 3, 4, 5, 6].map((num) => (
-                        <option key={num} value={num}>
-                          {num} credits
-                        </option>
-                      ))}
-                    </Form.Select>
-                  </Form.Group>
-                </Col>
-                <Col md={4}>
-                  <Form.Group className="mb-3">
-                    <Form.Label>Teacher *</Form.Label>
-                    <Form.Select
-                      value={courseForm.teacher}
-                      onChange={(e) =>
-                        setCourseForm({
-                          ...courseForm,
-                          teacher: e.target.value,
-                        })
-                      }
-                      required
-                    >
-                      <option value="">Select Teacher</option>
-                      {teachers.map((teacher) => (
-                        <option key={teacher._id} value={teacher._id}>
-                          {teacher.firstName} {teacher.lastName}
-                        </option>
-                      ))}
-                    </Form.Select>
-                  </Form.Group>
-                </Col>
-                <Col md={4}>
-                  <Form.Group className="mb-3">
-                    <Form.Label>Semester</Form.Label>
-                    <Form.Select
-                      value={courseForm.semester}
-                      onChange={(e) =>
-                        setCourseForm({
-                          ...courseForm,
-                          semester: e.target.value,
-                        })
-                      }
-                    >
-                      <option>Fall 2024</option>
-                      <option>Spring 2025</option>
-                      <option>Summer 2025</option>
-                    </Form.Select>
-                  </Form.Group>
-                </Col>
-              </Row>
-
-              <Form.Group className="mb-3">
-                <Form.Label>Academic Year</Form.Label>
-                <Form.Control
-                  type="text"
-                  value={courseForm.academicYear}
-                  onChange={(e) =>
-                    setCourseForm({
-                      ...courseForm,
-                      academicYear: e.target.value,
-                    })
-                  }
-                  placeholder="e.g., 2024-2025"
-                />
-              </Form.Group>
-            </Form>
-          </Modal.Body>
-          <Modal.Footer>
-            <Button
-              variant="secondary"
-              onClick={() => setShowCourseModal(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              onClick={handleCreateCourse}
-              disabled={submitting}
-            >
-              {submitting ? (
-                <>
-                  <span className="spinner-border spinner-border-sm me-2"></span>
-                  Creating...
-                </>
-              ) : (
-                "Create Course"
-              )}
-            </Button>
-          </Modal.Footer>
-        </Modal>
-
-        {/* Generate Report Modal */}
-        <Modal show={showReportModal} onHide={() => setShowReportModal(false)}>
-          <Modal.Header closeButton>
-            <Modal.Title>Generate Report</Modal.Title>
-          </Modal.Header>
-          <Modal.Body>
-            <p>
-              This will generate a comprehensive report with the following data:
-            </p>
-            <ul>
-              <li>Total Students: {stats?.totalStudents || 0}</li>
-              <li>Total Teachers: {stats?.totalTeachers || 0}</li>
-              <li>Total Courses: {stats?.totalCourses || 0}</li>
-              <li>Recent Activities: {recentActivity.length} entries</li>
-            </ul>
-            <p>The report will be downloaded as a CSV file.</p>
-          </Modal.Body>
-          <Modal.Footer>
-            <Button
-              variant="secondary"
-              onClick={() => setShowReportModal(false)}
-            >
-              Cancel
-            </Button>
-            <Button variant="primary" onClick={handleGenerateReport}>
-              Generate & Download
-            </Button>
-          </Modal.Footer>
-        </Modal>
-
-        {/* Send Notification Modal */}
-        <Modal
-          show={showNotificationModal}
-          onHide={() => setShowNotificationModal(false)}
-        >
-          <Modal.Header closeButton>
-            <Modal.Title>Send Notification</Modal.Title>
-          </Modal.Header>
-          <Modal.Body>
-            <Form>
-              <Form.Group className="mb-3">
-                <Form.Label>Title *</Form.Label>
-                <Form.Control
-                  type="text"
-                  value={notificationForm.title}
-                  onChange={(e) =>
-                    setNotificationForm({
-                      ...notificationForm,
-                      title: e.target.value,
-                    })
-                  }
-                  placeholder="Notification title"
-                  required
-                />
-              </Form.Group>
-
-              <Form.Group className="mb-3">
-                <Form.Label>Message *</Form.Label>
-                <Form.Control
-                  as="textarea"
-                  rows={4}
-                  value={notificationForm.message}
-                  onChange={(e) =>
-                    setNotificationForm({
-                      ...notificationForm,
-                      message: e.target.value,
-                    })
-                  }
-                  placeholder="Enter your notification message"
-                  required
-                />
-              </Form.Group>
-
-              <Row>
-                <Col md={6}>
-                  <Form.Group className="mb-3">
-                    <Form.Label>Type</Form.Label>
-                    <Form.Select
-                      value={notificationForm.type}
-                      onChange={(e) =>
-                        setNotificationForm({
-                          ...notificationForm,
-                          type: e.target.value,
-                        })
-                      }
-                    >
-                      <option value="info">Information</option>
-                      <option value="success">Success</option>
-                      <option value="warning">Warning</option>
-                      <option value="danger">Alert</option>
-                    </Form.Select>
-                  </Form.Group>
-                </Col>
-                <Col md={6}>
-                  <Form.Group className="mb-3">
-                    <Form.Label>Recipients</Form.Label>
-                    <Form.Select
-                      value={notificationForm.recipients}
-                      onChange={(e) =>
-                        setNotificationForm({
-                          ...notificationForm,
-                          recipients: e.target.value,
-                        })
-                      }
-                    >
-                      <option value="all">All Users</option>
-                      <option value="students">Students Only</option>
-                      <option value="teachers">Teachers Only</option>
-                      <option value="parents">Parents Only</option>
-                    </Form.Select>
-                  </Form.Group>
-                </Col>
-              </Row>
-            </Form>
-          </Modal.Body>
-          <Modal.Footer>
-            <Button
-              variant="secondary"
-              onClick={() => setShowNotificationModal(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              onClick={handleSendNotification}
-              disabled={submitting}
-            >
-              {submitting ? (
-                <>
-                  <span className="spinner-border spinner-border-sm me-2"></span>
-                  Sending...
-                </>
-              ) : (
-                "Send Notification"
-              )}
-            </Button>
-          </Modal.Footer>
-        </Modal>
       </>
     );
   };
 
   const teacherDashboard = () => {
     const lineData = {
-      labels: ["Week 1", "Week 2", "Week 3", "Week 4", "Week 5"],
+      labels: teacherData.performanceTrend.map((w) => w.week),
       datasets: [
         {
           label: "Class Average",
-          data: [65, 70, 75, 80, 85],
+          data: teacherData.performanceTrend.map((w) => w.average),
           borderColor: "rgba(75, 192, 192, 1)",
           backgroundColor: "rgba(75, 192, 192, 0.2)",
+          tension: 0.4,
         },
       ],
     };
@@ -1189,7 +706,9 @@ const Dashboard = () => {
                 <Card.Title>
                   <i className="bi bi-journal-text fs-1 text-primary"></i>
                 </Card.Title>
-                <Card.Text className="fs-4 fw-bold">12</Card.Text>
+                <Card.Text className="fs-4 fw-bold">
+                  {teacherData.stats.activeCourses}
+                </Card.Text>
                 <Card.Subtitle className="text-muted">
                   Active Courses
                 </Card.Subtitle>
@@ -1202,7 +721,9 @@ const Dashboard = () => {
                 <Card.Title>
                   <i className="bi bi-clock fs-1 text-warning"></i>
                 </Card.Title>
-                <Card.Text className="fs-4 fw-bold">8</Card.Text>
+                <Card.Text className="fs-4 fw-bold">
+                  {teacherData.stats.pendingGrading}
+                </Card.Text>
                 <Card.Subtitle className="text-muted">
                   Pending Grading
                 </Card.Subtitle>
@@ -1215,7 +736,9 @@ const Dashboard = () => {
                 <Card.Title>
                   <i className="bi bi-chat-left-text fs-1 text-success"></i>
                 </Card.Title>
-                <Card.Text className="fs-4 fw-bold">24</Card.Text>
+                <Card.Text className="fs-4 fw-bold">
+                  {teacherData.stats.unreadMessages}
+                </Card.Text>
                 <Card.Subtitle className="text-muted">
                   Unread Messages
                 </Card.Subtitle>
@@ -1228,7 +751,9 @@ const Dashboard = () => {
                 <Card.Title>
                   <i className="bi bi-calendar-event fs-1 text-info"></i>
                 </Card.Title>
-                <Card.Text className="fs-4 fw-bold">3</Card.Text>
+                <Card.Text className="fs-4 fw-bold">
+                  {teacherData.stats.todayClasses}
+                </Card.Text>
                 <Card.Subtitle className="text-muted">
                   Today's Classes
                 </Card.Subtitle>
@@ -1242,13 +767,19 @@ const Dashboard = () => {
             <Card className="shadow-sm">
               <Card.Body>
                 <Card.Title>Class Performance Trend</Card.Title>
-                <div style={{ height: "300px", position: "relative" }}>
+                <div style={{ height: "300px" }}>
                   <Line
-                    key={`line-${JSON.stringify(lineData)}`} // Add this key
+                    key={`line-${JSON.stringify(lineData)}`}
                     data={lineData}
                     options={{
                       responsive: true,
                       maintainAspectRatio: false,
+                      scales: {
+                        y: {
+                          beginAtZero: true,
+                          max: 100,
+                        },
+                      },
                     }}
                   />
                 </div>
@@ -1259,23 +790,28 @@ const Dashboard = () => {
             <Card className="shadow-sm">
               <Card.Body>
                 <Card.Title>Today's Schedule</Card.Title>
-                <ul className="list-unstyled">
-                  <li className="mb-3">
-                    <strong>9:00 AM</strong>
-                    <br />
-                    Mathematics - Room 101
-                  </li>
-                  <li className="mb-3">
-                    <strong>11:00 AM</strong>
-                    <br />
-                    Physics - Room 203
-                  </li>
-                  <li className="mb-3">
-                    <strong>2:00 PM</strong>
-                    <br />
-                    Office Hours
-                  </li>
-                </ul>
+                {teacherData.todaySchedule.length > 0 ? (
+                  <ListGroup variant="flush">
+                    {teacherData.todaySchedule.map((item, index) => (
+                      <ListGroup.Item key={index}>
+                        <strong>
+                          {item.schedule.startTime} - {item.schedule.endTime}
+                        </strong>
+                        <br />
+                        {item.courseCode} - {item.courseName}
+                        <br />
+                        <small className="text-muted">
+                          Room {item.schedule.room} • {item.studentCount}{" "}
+                          students
+                        </small>
+                      </ListGroup.Item>
+                    ))}
+                  </ListGroup>
+                ) : (
+                  <p className="text-muted text-center py-3">
+                    No classes today
+                  </p>
+                )}
               </Card.Body>
             </Card>
           </Col>
@@ -1286,32 +822,47 @@ const Dashboard = () => {
             <Card className="shadow-sm">
               <Card.Body>
                 <Card.Title>Upcoming Assignments</Card.Title>
-                <Table hover responsive>
-                  <thead>
-                    <tr>
-                      <th>Course</th>
-                      <th>Assignment</th>
-                      <th>Due Date</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>Mathematics</td>
-                      <td>Calculus Homework</td>
-                      <td>Tomorrow</td>
-                    </tr>
-                    <tr>
-                      <td>Physics</td>
-                      <td>Lab Report</td>
-                      <td>In 3 days</td>
-                    </tr>
-                    <tr>
-                      <td>English</td>
-                      <td>Essay Writing</td>
-                      <td>Next Week</td>
-                    </tr>
-                  </tbody>
-                </Table>
+                {teacherData.upcomingAssignments.length > 0 ? (
+                  <Table hover responsive>
+                    <thead>
+                      <tr>
+                        <th>Course</th>
+                        <th>Assignment</th>
+                        <th>Due Date</th>
+                        <th>Submissions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {teacherData.upcomingAssignments.map((assignment) => (
+                        <tr key={assignment._id}>
+                          <td>{assignment.courseCode}</td>
+                          <td>{assignment.title}</td>
+                          <td>
+                            <Badge
+                              bg={
+                                new Date(assignment.dueDate) < new Date()
+                                  ? "danger"
+                                  : "warning"
+                              }
+                            >
+                              {new Date(
+                                assignment.dueDate,
+                              ).toLocaleDateString()}
+                            </Badge>
+                          </td>
+                          <td>
+                            {assignment.submissionsCount}/
+                            {assignment.totalStudents}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </Table>
+                ) : (
+                  <p className="text-muted text-center py-3">
+                    No upcoming assignments
+                  </p>
+                )}
               </Card.Body>
             </Card>
           </Col>
@@ -1319,38 +870,42 @@ const Dashboard = () => {
             <Card className="shadow-sm">
               <Card.Body>
                 <Card.Title>Recent Submissions</Card.Title>
-                <Table hover responsive>
-                  <thead>
-                    <tr>
-                      <th>Student</th>
-                      <th>Assignment</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>John Doe</td>
-                      <td>Math Quiz</td>
-                      <td>
-                        <Badge bg="success">Submitted</Badge>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td>Jane Smith</td>
-                      <td>Physics Lab</td>
-                      <td>
-                        <Badge bg="warning">Late</Badge>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td>Bob Johnson</td>
-                      <td>Essay</td>
-                      <td>
-                        <Badge bg="secondary">Not Submitted</Badge>
-                      </td>
-                    </tr>
-                  </tbody>
-                </Table>
+                {teacherData.recentSubmissions.length > 0 ? (
+                  <Table hover responsive>
+                    <thead>
+                      <tr>
+                        <th>Student</th>
+                        <th>Assignment</th>
+                        <th>Time</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {teacherData.recentSubmissions.map((sub) => (
+                        <tr key={sub._id}>
+                          <td>{sub.studentName}</td>
+                          <td>{sub.assignmentTitle}</td>
+                          <td>
+                            {new Date(sub.submittedAt).toLocaleTimeString()}
+                          </td>
+                          <td>
+                            <Badge
+                              bg={
+                                sub.status === "graded" ? "success" : "warning"
+                              }
+                            >
+                              {sub.status}
+                            </Badge>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </Table>
+                ) : (
+                  <p className="text-muted text-center py-3">
+                    No recent submissions
+                  </p>
+                )}
               </Card.Body>
             </Card>
           </Col>
@@ -1369,7 +924,9 @@ const Dashboard = () => {
                 <Card.Title>
                   <i className="bi bi-book fs-1 text-primary"></i>
                 </Card.Title>
-                <Card.Text className="fs-4 fw-bold">5</Card.Text>
+                <Card.Text className="fs-4 fw-bold">
+                  {studentData.stats.enrolledCourses}
+                </Card.Text>
                 <Card.Subtitle className="text-muted">
                   Enrolled Courses
                 </Card.Subtitle>
@@ -1382,7 +939,9 @@ const Dashboard = () => {
                 <Card.Title>
                   <i className="bi bi-check-circle fs-1 text-success"></i>
                 </Card.Title>
-                <Card.Text className="fs-4 fw-bold">92%</Card.Text>
+                <Card.Text className="fs-4 fw-bold">
+                  {studentData.stats.attendanceRate}%
+                </Card.Text>
                 <Card.Subtitle className="text-muted">Attendance</Card.Subtitle>
               </Card.Body>
             </Card>
@@ -1393,7 +952,9 @@ const Dashboard = () => {
                 <Card.Title>
                   <i className="bi bi-file-earmark-text fs-1 text-warning"></i>
                 </Card.Title>
-                <Card.Text className="fs-4 fw-bold">3</Card.Text>
+                <Card.Text className="fs-4 fw-bold">
+                  {studentData.stats.pendingAssignments}
+                </Card.Text>
                 <Card.Subtitle className="text-muted">
                   Pending Assignments
                 </Card.Subtitle>
@@ -1406,7 +967,9 @@ const Dashboard = () => {
                 <Card.Title>
                   <i className="bi bi-award fs-1 text-info"></i>
                 </Card.Title>
-                <Card.Text className="fs-4 fw-bold">85%</Card.Text>
+                <Card.Text className="fs-4 fw-bold">
+                  {studentData.stats.averageGrade}%
+                </Card.Text>
                 <Card.Subtitle className="text-muted">
                   Average Grade
                 </Card.Subtitle>
@@ -1420,32 +983,50 @@ const Dashboard = () => {
             <Card className="shadow-sm">
               <Card.Body>
                 <Card.Title>Upcoming Assignments</Card.Title>
-                <Table hover responsive>
-                  <thead>
-                    <tr>
-                      <th>Course</th>
-                      <th>Assignment</th>
-                      <th>Due Date</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>Mathematics</td>
-                      <td>Calculus Homework</td>
-                      <td>Tomorrow</td>
-                    </tr>
-                    <tr>
-                      <td>Physics</td>
-                      <td>Lab Report</td>
-                      <td>In 3 days</td>
-                    </tr>
-                    <tr>
-                      <td>English</td>
-                      <td>Essay Writing</td>
-                      <td>Next Week</td>
-                    </tr>
-                  </tbody>
-                </Table>
+                {studentData.upcomingAssignments.length > 0 ? (
+                  <Table hover responsive>
+                    <thead>
+                      <tr>
+                        <th>Course</th>
+                        <th>Assignment</th>
+                        <th>Due Date</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {studentData.upcomingAssignments.map((assignment) => (
+                        <tr key={assignment._id}>
+                          <td>{assignment.courseCode}</td>
+                          <td>{assignment.title}</td>
+                          <td>
+                            <Badge
+                              bg={
+                                new Date(assignment.dueDate) < new Date()
+                                  ? "danger"
+                                  : "warning"
+                              }
+                            >
+                              {new Date(
+                                assignment.dueDate,
+                              ).toLocaleDateString()}
+                            </Badge>
+                          </td>
+                          <td>
+                            {assignment.submitted ? (
+                              <Badge bg="success">Submitted</Badge>
+                            ) : (
+                              <Badge bg="secondary">Pending</Badge>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </Table>
+                ) : (
+                  <p className="text-muted text-center py-3">
+                    No upcoming assignments
+                  </p>
+                )}
               </Card.Body>
             </Card>
           </Col>
@@ -1453,38 +1034,44 @@ const Dashboard = () => {
             <Card className="shadow-sm">
               <Card.Body>
                 <Card.Title>Recent Grades</Card.Title>
-                <Table hover responsive>
-                  <thead>
-                    <tr>
-                      <th>Course</th>
-                      <th>Assignment</th>
-                      <th>Grade</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>Mathematics</td>
-                      <td>Mid-term Exam</td>
-                      <td>
-                        <Badge bg="success">A</Badge>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td>Physics</td>
-                      <td>Quiz 2</td>
-                      <td>
-                        <Badge bg="warning">B+</Badge>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td>Chemistry</td>
-                      <td>Lab Experiment</td>
-                      <td>
-                        <Badge bg="info">A-</Badge>
-                      </td>
-                    </tr>
-                  </tbody>
-                </Table>
+                {studentData.recentGrades.length > 0 ? (
+                  <Table hover responsive>
+                    <thead>
+                      <tr>
+                        <th>Course</th>
+                        <th>Assignment</th>
+                        <th>Grade</th>
+                        <th>Feedback</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {studentData.recentGrades.map((grade, index) => (
+                        <tr key={index}>
+                          <td>{grade.courseCode}</td>
+                          <td>{grade.assignmentTitle}</td>
+                          <td>
+                            <Badge
+                              bg={
+                                grade.grade >= 90
+                                  ? "success"
+                                  : grade.grade >= 80
+                                    ? "info"
+                                    : grade.grade >= 70
+                                      ? "warning"
+                                      : "danger"
+                              }
+                            >
+                              {grade.grade}%
+                            </Badge>
+                          </td>
+                          <td>{grade.feedback || "-"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </Table>
+                ) : (
+                  <p className="text-muted text-center py-3">No grades yet</p>
+                )}
               </Card.Body>
             </Card>
           </Col>
@@ -1514,7 +1101,7 @@ const Dashboard = () => {
                   <tbody>
                     <tr>
                       <td>John Doe Jr.</td>
-                      <td>Grade 10 - A</td>
+                      <td>First Year</td>
                       <td>
                         <Badge bg="success">95%</Badge>
                       </td>
@@ -1529,7 +1116,7 @@ const Dashboard = () => {
                     </tr>
                     <tr>
                       <td>Jane Doe</td>
-                      <td>Grade 8 - B</td>
+                      <td>Second Year</td>
                       <td>
                         <Badge bg="warning">82%</Badge>
                       </td>
@@ -1620,7 +1207,558 @@ const Dashboard = () => {
         </Badge>
       </div>
 
-      {getRoleBasedContent()}
+      {user?.role === "admin" && adminDashboard()}
+      {user?.role === "teacher" && teacherDashboard()}
+      {user?.role === "student" && studentDashboard()}
+      {user?.role === "parent" && parentDashboard()}
+
+      {/* Add Student Modal */}
+      <Modal
+        show={showStudentModal}
+        onHide={() => setShowStudentModal(false)}
+        size="lg"
+      >
+        <Modal.Header closeButton>
+          <Modal.Title>Add New Student</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Form>
+            <Row>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>First Name *</Form.Label>
+                  <Form.Control
+                    type="text"
+                    value={studentForm.firstName}
+                    onChange={(e) =>
+                      setStudentForm({
+                        ...studentForm,
+                        firstName: e.target.value,
+                      })
+                    }
+                    required
+                  />
+                </Form.Group>
+              </Col>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Last Name *</Form.Label>
+                  <Form.Control
+                    type="text"
+                    value={studentForm.lastName}
+                    onChange={(e) =>
+                      setStudentForm({
+                        ...studentForm,
+                        lastName: e.target.value,
+                      })
+                    }
+                    required
+                  />
+                </Form.Group>
+              </Col>
+            </Row>
+
+            <Row>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Email *</Form.Label>
+                  <Form.Control
+                    type="email"
+                    value={studentForm.email}
+                    onChange={(e) =>
+                      setStudentForm({ ...studentForm, email: e.target.value })
+                    }
+                    required
+                  />
+                </Form.Group>
+              </Col>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Phone *</Form.Label>
+                  <Form.Control
+                    type="tel"
+                    value={studentForm.phone}
+                    onChange={(e) =>
+                      setStudentForm({ ...studentForm, phone: e.target.value })
+                    }
+                    required
+                  />
+                </Form.Group>
+              </Col>
+            </Row>
+
+            <Row>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Year of Study *</Form.Label>
+                  <Form.Select
+                    value={studentForm.classGrade}
+                    onChange={(e) =>
+                      setStudentForm({
+                        ...studentForm,
+                        classGrade: e.target.value,
+                      })
+                    }
+                    required
+                  >
+                    <option value="">Select Year</option>
+                    <option value="First Year">First Year</option>
+                    <option value="Second Year">Second Year</option>
+                    <option value="Third Year">Third Year</option>
+                    <option value="Fourth Year">Fourth Year</option>
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Gender</Form.Label>
+                  <Form.Select
+                    value={studentForm.gender}
+                    onChange={(e) =>
+                      setStudentForm({ ...studentForm, gender: e.target.value })
+                    }
+                  >
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+            </Row>
+
+            <Row>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Date of Birth</Form.Label>
+                  <Form.Control
+                    type="date"
+                    value={studentForm.dateOfBirth}
+                    onChange={(e) =>
+                      setStudentForm({
+                        ...studentForm,
+                        dateOfBirth: e.target.value,
+                      })
+                    }
+                  />
+                </Form.Group>
+              </Col>
+            </Row>
+
+            <Alert variant="info" className="mb-0">
+              <i className="bi bi-info-circle me-2"></i>
+              Default password will be: <strong>student123</strong>
+            </Alert>
+          </Form>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button
+            variant="secondary"
+            onClick={() => setShowStudentModal(false)}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            onClick={handleAddStudent}
+            disabled={submitting}
+          >
+            {submitting ? (
+              <>
+                <span className="spinner-border spinner-border-sm me-2"></span>
+                Adding...
+              </>
+            ) : (
+              "Add Student"
+            )}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Create Course Modal */}
+      <Modal
+        show={showCourseModal}
+        onHide={() => setShowCourseModal(false)}
+        size="lg"
+      >
+        <Modal.Header closeButton>
+          <Modal.Title>Create New Course</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Form>
+            <Row>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Course Code *</Form.Label>
+                  <Form.Control
+                    type="text"
+                    value={courseForm.courseCode}
+                    onChange={(e) =>
+                      setCourseForm({
+                        ...courseForm,
+                        courseCode: e.target.value.toUpperCase(),
+                      })
+                    }
+                    placeholder="e.g., CS101"
+                    required
+                  />
+                </Form.Group>
+              </Col>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Course Name *</Form.Label>
+                  <Form.Control
+                    type="text"
+                    value={courseForm.courseName}
+                    onChange={(e) =>
+                      setCourseForm({
+                        ...courseForm,
+                        courseName: e.target.value,
+                      })
+                    }
+                    placeholder="e.g., Introduction to Programming"
+                    required
+                  />
+                </Form.Group>
+              </Col>
+            </Row>
+
+            <Form.Group className="mb-3">
+              <Form.Label>Description</Form.Label>
+              <Form.Control
+                as="textarea"
+                rows={3}
+                value={courseForm.description}
+                onChange={(e) =>
+                  setCourseForm({ ...courseForm, description: e.target.value })
+                }
+                placeholder="Course description"
+              />
+            </Form.Group>
+
+            <Row>
+              <Col md={4}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Credits</Form.Label>
+                  <Form.Select
+                    value={courseForm.credits}
+                    onChange={(e) =>
+                      setCourseForm({
+                        ...courseForm,
+                        credits: parseInt(e.target.value),
+                      })
+                    }
+                  >
+                    {[1, 2, 3, 4, 5, 6].map((num) => (
+                      <option key={num} value={num}>
+                        {num} credits
+                      </option>
+                    ))}
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+              <Col md={4}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Teacher *</Form.Label>
+                  <Form.Select
+                    value={courseForm.teacher}
+                    onChange={(e) =>
+                      setCourseForm({ ...courseForm, teacher: e.target.value })
+                    }
+                    required
+                  >
+                    <option value="">Select Teacher</option>
+                    {teachers.map((teacher) => (
+                      <option key={teacher._id} value={teacher._id}>
+                        {teacher.firstName} {teacher.lastName}
+                      </option>
+                    ))}
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+              <Col md={4}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Max Students</Form.Label>
+                  <Form.Control
+                    type="number"
+                    value={courseForm.maxStudents}
+                    onChange={(e) =>
+                      setCourseForm({
+                        ...courseForm,
+                        maxStudents: parseInt(e.target.value),
+                      })
+                    }
+                    min="1"
+                    max="100"
+                  />
+                </Form.Group>
+              </Col>
+            </Row>
+
+            <Row>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Semester</Form.Label>
+                  <Form.Select
+                    value={courseForm.semester}
+                    onChange={(e) =>
+                      setCourseForm({ ...courseForm, semester: e.target.value })
+                    }
+                  >
+                    <option>Fall 2024</option>
+                    <option>Spring 2025</option>
+                    <option>Summer 2025</option>
+                    <option>Fall 2025</option>
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Academic Year</Form.Label>
+                  <Form.Control
+                    type="text"
+                    value={courseForm.academicYear}
+                    onChange={(e) =>
+                      setCourseForm({
+                        ...courseForm,
+                        academicYear: e.target.value,
+                      })
+                    }
+                    placeholder="e.g., 2024-2025"
+                  />
+                </Form.Group>
+              </Col>
+            </Row>
+
+            <div className="d-flex justify-content-between align-items-center mb-3">
+              <Form.Label className="mb-0 fw-bold">Schedule</Form.Label>
+              <Button
+                size="sm"
+                variant="outline-primary"
+                onClick={addScheduleRow}
+              >
+                <i className="bi bi-plus-circle me-1"></i> Add Time Slot
+              </Button>
+            </div>
+
+            {courseForm.schedule.map((slot, index) => (
+              <Row key={index} className="mb-2 align-items-end">
+                <Col md={3}>
+                  <Form.Select
+                    size="sm"
+                    value={slot.day}
+                    onChange={(e) =>
+                      updateScheduleRow(index, "day", e.target.value)
+                    }
+                  >
+                    <option>Monday</option>
+                    <option>Tuesday</option>
+                    <option>Wednesday</option>
+                    <option>Thursday</option>
+                    <option>Friday</option>
+                    <option>Saturday</option>
+                  </Form.Select>
+                </Col>
+                <Col md={2}>
+                  <Form.Control
+                    size="sm"
+                    type="time"
+                    value={slot.startTime}
+                    onChange={(e) =>
+                      updateScheduleRow(index, "startTime", e.target.value)
+                    }
+                  />
+                </Col>
+                <Col md={2}>
+                  <Form.Control
+                    size="sm"
+                    type="time"
+                    value={slot.endTime}
+                    onChange={(e) =>
+                      updateScheduleRow(index, "endTime", e.target.value)
+                    }
+                  />
+                </Col>
+                <Col md={3}>
+                  <Form.Control
+                    size="sm"
+                    type="text"
+                    placeholder="Room"
+                    value={slot.room}
+                    onChange={(e) =>
+                      updateScheduleRow(index, "room", e.target.value)
+                    }
+                  />
+                </Col>
+                <Col md={2}>
+                  <Button
+                    size="sm"
+                    variant="outline-danger"
+                    onClick={() => removeScheduleRow(index)}
+                    disabled={courseForm.schedule.length === 1}
+                  >
+                    <i className="bi bi-trash"></i>
+                  </Button>
+                </Col>
+              </Row>
+            ))}
+          </Form>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowCourseModal(false)}>
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            onClick={handleCreateCourse}
+            disabled={submitting}
+          >
+            {submitting ? (
+              <>
+                <span className="spinner-border spinner-border-sm me-2"></span>
+                Creating...
+              </>
+            ) : (
+              "Create Course"
+            )}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Generate Report Modal */}
+      <Modal show={showReportModal} onHide={() => setShowReportModal(false)}>
+        <Modal.Header closeButton>
+          <Modal.Title>Generate Report</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <p>
+            This will generate a comprehensive report with the following data:
+          </p>
+          <ul>
+            <li>Total Students: {stats?.totalStudents || 0}</li>
+            <li>Total Teachers: {stats?.totalTeachers || 0}</li>
+            <li>Total Courses: {stats?.totalCourses || 0}</li>
+            <li>Recent Activities: {recentActivity.length} entries</li>
+          </ul>
+          <p>The report will be downloaded as a CSV file.</p>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowReportModal(false)}>
+            Cancel
+          </Button>
+          <Button variant="primary" onClick={handleGenerateReport}>
+            Generate & Download
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Send Notification Modal */}
+      <Modal
+        show={showNotificationModal}
+        onHide={() => setShowNotificationModal(false)}
+      >
+        <Modal.Header closeButton>
+          <Modal.Title>Send Notification</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Form>
+            <Form.Group className="mb-3">
+              <Form.Label>Title *</Form.Label>
+              <Form.Control
+                type="text"
+                value={notificationForm.title}
+                onChange={(e) =>
+                  setNotificationForm({
+                    ...notificationForm,
+                    title: e.target.value,
+                  })
+                }
+                placeholder="Notification title"
+                required
+              />
+            </Form.Group>
+
+            <Form.Group className="mb-3">
+              <Form.Label>Message *</Form.Label>
+              <Form.Control
+                as="textarea"
+                rows={4}
+                value={notificationForm.message}
+                onChange={(e) =>
+                  setNotificationForm({
+                    ...notificationForm,
+                    message: e.target.value,
+                  })
+                }
+                placeholder="Enter your notification message"
+                required
+              />
+            </Form.Group>
+
+            <Row>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Type</Form.Label>
+                  <Form.Select
+                    value={notificationForm.type}
+                    onChange={(e) =>
+                      setNotificationForm({
+                        ...notificationForm,
+                        type: e.target.value,
+                      })
+                    }
+                  >
+                    <option value="info">Information</option>
+                    <option value="success">Success</option>
+                    <option value="warning">Warning</option>
+                    <option value="danger">Alert</option>
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Recipients</Form.Label>
+                  <Form.Select
+                    value={notificationForm.recipients}
+                    onChange={(e) =>
+                      setNotificationForm({
+                        ...notificationForm,
+                        recipients: e.target.value,
+                      })
+                    }
+                  >
+                    <option value="all">All Users</option>
+                    <option value="students">Students Only</option>
+                    <option value="teachers">Teachers Only</option>
+                    <option value="parents">Parents Only</option>
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+            </Row>
+          </Form>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button
+            variant="secondary"
+            onClick={() => setShowNotificationModal(false)}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            onClick={handleSendNotification}
+            disabled={submitting}
+          >
+            {submitting ? (
+              <>
+                <span className="spinner-border spinner-border-sm me-2"></span>
+                Sending...
+              </>
+            ) : (
+              "Send Notification"
+            )}
+          </Button>
+        </Modal.Footer>
+      </Modal>
     </Container>
   );
 };

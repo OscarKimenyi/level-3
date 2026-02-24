@@ -31,6 +31,57 @@ const Assignments = () => {
   const [selectedAssignment, setSelectedAssignment] = useState(null);
   const [submissionFile, setSubmissionFile] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [showSubmissionsModal, setShowSubmissionsModal] = useState(false);
+  const [
+    selectedAssignmentForSubmissions,
+    setSelectedAssignmentForSubmissions,
+  ] = useState(null);
+  const [submissions, setSubmissions] = useState([]);
+
+  // Add this function to grade a submission
+  const handleGradeSubmission = async (submissionId) => {
+    if (!gradingData.grade) {
+      setError("Please enter a grade");
+      return;
+    }
+
+    try {
+      await api.post(
+        `/assignments/${selectedAssignmentForSubmissions._id}/grade/${submissionId}`,
+        {
+          grade: parseInt(gradingData.grade),
+          feedback: gradingData.feedback,
+        },
+      );
+
+      setSuccess("Submission graded successfully");
+      // Refresh submissions
+      fetchSubmissions(selectedAssignmentForSubmissions._id);
+      setGradingData({ grade: "", feedback: "" });
+
+      setTimeout(() => setSuccess(""), 3000);
+    } catch (err) {
+      console.error("Error grading submission:", err);
+      setError("Failed to grade submission");
+    }
+  };
+  // Add this function to fetch submissions for an assignment
+  const fetchSubmissions = async (assignmentId) => {
+    try {
+      setLoading(true);
+      const response = await api.get(`/assignments/${assignmentId}`);
+      const assignment = response.data.data;
+      setSelectedAssignmentForSubmissions(assignment);
+      setSubmissions(assignment.submissions || []);
+      setShowSubmissionsModal(true);
+    } catch (err) {
+      console.error("Error fetching submissions:", err);
+      setError("Failed to load submissions");
+    } finally {
+      setLoading(false);
+    }
+  };
+  const [gradingData, setGradingData] = useState({ grade: "", feedback: "" });
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -292,10 +343,9 @@ const Assignments = () => {
                             <Button
                               variant="outline-info"
                               size="sm"
-                              onClick={() => {
-                                /* View submissions */
-                              }}
+                              onClick={() => fetchSubmissions(assignment._id)}
                             >
+                              <i className="bi bi-eye me-1"></i>
                               View Submissions
                             </Button>
                           )}
@@ -486,6 +536,142 @@ const Assignments = () => {
             ) : (
               "Submit Assignment"
             )}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+      {/* Submissions Modal */}
+      <Modal
+        show={showSubmissionsModal}
+        onHide={() => setShowSubmissionsModal(false)}
+        size="lg"
+      >
+        <Modal.Header closeButton>
+          <Modal.Title>
+            Submissions for {selectedAssignmentForSubmissions?.title}
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {submissions.length > 0 ? (
+            <Table hover responsive>
+              <thead>
+                <tr>
+                  <th>Student</th>
+                  <th>Submitted</th>
+                  <th>File</th>
+                  <th>Grade</th>
+                  <th>Feedback</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {submissions.map((sub) => (
+                  <tr key={sub._id}>
+                    <td>
+                      {sub.student?.firstName} {sub.student?.lastName}
+                    </td>
+                    <td>{new Date(sub.submittedAt).toLocaleDateString()}</td>
+                    <td>
+                      {sub.submittedFile && (
+                        <Button
+                          variant="link"
+                          size="sm"
+                          href={`http://localhost:5000/${sub.submittedFile.path}`}
+                          target="_blank"
+                        >
+                          <i className="bi bi-file-earmark"></i> View
+                        </Button>
+                      )}
+                    </td>
+                    <td>
+                      {sub.grade ? (
+                        <Badge bg="success">{sub.grade}</Badge>
+                      ) : (
+                        <Badge bg="warning">Pending</Badge>
+                      )}
+                    </td>
+                    <td>{sub.feedback || "-"}</td>
+                    <td>
+                      {!sub.grade && (
+                        <Button
+                          size="sm"
+                          variant="outline-primary"
+                          onClick={() =>
+                            setGradingData({
+                              grade: sub.grade || "",
+                              feedback: sub.feedback || "",
+                              submissionId: sub._id,
+                            })
+                          }
+                        >
+                          Grade
+                        </Button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          ) : (
+            <p className="text-center text-muted py-4">No submissions yet</p>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button
+            variant="secondary"
+            onClick={() => setShowSubmissionsModal(false)}
+          >
+            Close
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Grading Modal */}
+      <Modal
+        show={!!gradingData.submissionId}
+        onHide={() => setGradingData({ grade: "", feedback: "" })}
+      >
+        <Modal.Header closeButton>
+          <Modal.Title>Grade Submission</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Form>
+            <Form.Group className="mb-3">
+              <Form.Label>Grade (0-100)</Form.Label>
+              <Form.Control
+                type="number"
+                min="0"
+                max="100"
+                value={gradingData.grade}
+                onChange={(e) =>
+                  setGradingData({ ...gradingData, grade: e.target.value })
+                }
+              />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Feedback</Form.Label>
+              <Form.Control
+                as="textarea"
+                rows={3}
+                value={gradingData.feedback}
+                onChange={(e) =>
+                  setGradingData({ ...gradingData, feedback: e.target.value })
+                }
+              />
+            </Form.Group>
+          </Form>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button
+            variant="secondary"
+            onClick={() => setGradingData({ grade: "", feedback: "" })}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            onClick={() => handleGradeSubmission(gradingData.submissionId)}
+          >
+            Save Grade
           </Button>
         </Modal.Footer>
       </Modal>

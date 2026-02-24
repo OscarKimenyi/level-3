@@ -19,7 +19,7 @@ import { formatTime } from "../utils/helpers";
 
 const Chat = () => {
   const { user } = useAuth();
-  const { isConnected, emit, on } = useSocket();
+  const { isConnected, emit, on, socketId } = useSocket();
 
   const [contacts, setContacts] = useState([]);
   const [selectedContact, setSelectedContact] = useState(null);
@@ -32,7 +32,16 @@ const Chat = () => {
   const [contactTyping, setContactTyping] = useState(false);
 
   const messagesEndRef = useRef(null);
-  const fileInputRef = useRef(null);
+  //const fileInputRef = useRef(null);
+
+  // Log connection status
+  useEffect(() => {
+    console.log(
+      "Socket connection status:",
+      isConnected ? "Connected" : "Disconnected",
+    );
+    console.log("Socket ID:", socketId);
+  }, [isConnected, socketId]);
 
   const fetchContacts = useCallback(async () => {
     try {
@@ -46,9 +55,10 @@ const Chat = () => {
 
         for (const course of coursesRes.data.data || []) {
           if (course.teacher?.userId) {
+            // IMPORTANT: Store _id as a string, not an object
             teachers.add(
               JSON.stringify({
-                _id: course.teacher.userId,
+                _id: course.teacher.userId.toString(), // Ensure string
                 name: `${course.teacher.firstName} ${course.teacher.lastName}`,
                 role: "teacher",
                 course: course.courseName,
@@ -67,7 +77,7 @@ const Chat = () => {
               if (student.userId) {
                 students.add(
                   JSON.stringify({
-                    _id: student.userId,
+                    _id: student.userId.toString(), // Ensure string
                     name: `${student.firstName} ${student.lastName}`,
                     role: "student",
                     course: course.courseName,
@@ -86,21 +96,23 @@ const Chat = () => {
 
         contactsData = [
           ...(teachersRes.data.data || []).map((t) => ({
-            _id: t.userId,
+            _id: t.userId?.toString() || t._id?.toString(), // Ensure string
             name: `${t.firstName} ${t.lastName}`,
             role: "teacher",
             department: t.department,
           })),
           ...(studentsRes.data.data || []).map((s) => ({
-            _id: s.userId,
+            _id: s.userId?.toString() || s._id?.toString(), // Ensure string
             name: `${s.firstName} ${s.lastName}`,
             role: "student",
             class: s.classGrade,
           })),
-        ];
+        ].filter((contact) => contact._id); // Filter out invalid contacts
       }
 
+      console.log("Contacts loaded:", contactsData); // Debug log
       setContacts(contactsData);
+
       if (contactsData.length > 0 && !selectedContact) {
         setSelectedContact(contactsData[0]);
       }
@@ -117,10 +129,25 @@ const Chat = () => {
     fetchContacts();
   }, [fetchContacts]);
 
+  // Set up message listeners
   useEffect(() => {
-    if (!isConnected || !selectedContact) return;
+    if (!isConnected || !selectedContact) {
+      console.log(
+        "Not setting up listeners - connected:",
+        isConnected,
+        "selected:",
+        !!selectedContact,
+      );
+      return;
+    }
+
+    console.log(
+      "Setting up message listeners for contact:",
+      selectedContact.name,
+    );
 
     const handleReceiveMessage = (data) => {
+      console.log("Received message:", data);
       if (data.senderId === selectedContact._id) {
         setMessages((prev) => [
           ...prev,
@@ -140,6 +167,10 @@ const Chat = () => {
     const handleUserTyping = (data) => {
       if (data.userId === selectedContact._id) {
         setContactTyping(data.isTyping);
+        // Auto-hide typing indicator after 2 seconds
+        if (data.isTyping) {
+          setTimeout(() => setContactTyping(false), 2000);
+        }
       }
     };
 
@@ -147,6 +178,7 @@ const Chat = () => {
     const unsubscribeTyping = on("user_typing", handleUserTyping);
 
     return () => {
+      console.log("Cleaning up message listeners");
       unsubscribeMessage();
       unsubscribeTyping();
     };
@@ -156,6 +188,42 @@ const Chat = () => {
     scrollToBottom();
   }, [messages]);
 
+  const loadChatHistory = useCallback(async () => {
+    if (!selectedContact) return;
+
+    // Validate that selectedContact has a valid _id
+    if (!selectedContact._id || selectedContact._id === "[object Object]") {
+      console.error("Invalid contact ID:", selectedContact);
+      setError("Invalid contact selected");
+      return;
+    }
+
+    try {
+      console.log(
+        "Loading chat history for:",
+        selectedContact.name,
+        "ID:",
+        selectedContact._id,
+      );
+      const response = await api.get(
+        `/messages/conversation/${selectedContact._id}`,
+      );
+      setMessages(response.data.data || []);
+    } catch (err) {
+      console.error("Error loading chat history:", err);
+      if (err.response?.status === 400) {
+        setError("Invalid contact selected");
+      } else {
+        setError("Failed to load messages");
+      }
+    }
+  }, [selectedContact]);
+  useEffect(() => {
+    if (selectedContact) {
+      loadChatHistory();
+    }
+  }, [selectedContact, loadChatHistory]);
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -163,36 +231,57 @@ const Chat = () => {
   const handleSendMessage = (e) => {
     e.preventDefault();
 
-    if (!newMessage.trim() || !selectedContact || !emit) return;
+    if (!newMessage.trim() || !selectedContact) {
+      console.log("Cannot send: empty message or no contact");
+      return;
+    }
+
+    if (!isConnected) {
+      console.log("Cannot send: socket not connected");
+      setError("Cannot send message: Not connected to server");
+      return;
+    }
+
+    if (!emit) {
+      console.log("Cannot send: emit function not available");
+      setError("Cannot send message: Socket not initialized");
+      return;
+    }
+
+    console.log("Sending message to:", selectedContact.name);
 
     const messageData = {
       receiverId: selectedContact._id,
       message: newMessage.trim(),
     };
 
-    emit("send_message", messageData);
+    const success = emit("send_message", messageData);
 
-    setMessages((prev) => [
-      ...prev,
-      {
-        _id: Date.now().toString(),
-        sender: user?._id,
-        receiver: selectedContact._id,
-        message: newMessage.trim(),
-        timestamp: new Date(),
-        read: false,
-      },
-    ]);
+    if (success) {
+      console.log("Message sent successfully");
+      setMessages((prev) => [
+        ...prev,
+        {
+          _id: Date.now().toString(),
+          sender: user?._id,
+          receiver: selectedContact._id,
+          message: newMessage.trim(),
+          timestamp: new Date(),
+          read: false,
+        },
+      ]);
 
-    setNewMessage("");
+      setNewMessage("");
 
-    if (emit) {
       emit("typing", { receiverId: selectedContact._id, isTyping: false });
+    } else {
+      console.log("Failed to send message");
+      setError("Failed to send message");
     }
   };
 
   const handleTyping = () => {
-    if (!selectedContact || !emit) return;
+    if (!selectedContact || !isConnected || !emit) return;
 
     if (!isTyping) {
       setIsTyping(true);
@@ -206,63 +295,12 @@ const Chat = () => {
     setTypingTimeout(
       setTimeout(() => {
         setIsTyping(false);
-        if (emit) {
+        if (emit && isConnected) {
           emit("typing", { receiverId: selectedContact._id, isTyping: false });
         }
       }, 1000),
     );
   };
-
-  const handleFileUpload = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileChange = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const fileMessage = `📎 File: ${file.name}`;
-
-    if (emit) {
-      emit("send_message", {
-        receiverId: selectedContact._id,
-        message: fileMessage,
-      });
-    }
-
-    setMessages((prev) => [
-      ...prev,
-      {
-        _id: Date.now().toString(),
-        sender: user?._id,
-        receiver: selectedContact._id,
-        message: fileMessage,
-        timestamp: new Date(),
-        read: false,
-      },
-    ]);
-
-    e.target.value = "";
-  };
-
-  const loadChatHistory = useCallback(async () => {
-    if (!selectedContact) return;
-
-    try {
-      const response = await api.get(
-        `/messages/conversation/${selectedContact._id}`,
-      );
-      setMessages(response.data.data || []);
-    } catch (err) {
-      console.error("Error loading chat history:", err);
-    }
-  }, [selectedContact]);
-
-  useEffect(() => {
-    if (selectedContact) {
-      loadChatHistory();
-    }
-  }, [selectedContact, loadChatHistory]);
 
   if (loading) {
     return (
@@ -293,7 +331,7 @@ const Chat = () => {
         <Col md={4}>
           <Card className="shadow-sm h-100">
             <Card.Header className="bg-primary text-white">
-              <h5 className="mb-0">Contacts</h5>
+              <h5 className="mb-0">Contacts ({contacts.length})</h5>
             </Card.Header>
             <ListGroup
               variant="flush"
@@ -306,34 +344,31 @@ const Chat = () => {
                     action
                     active={selectedContact?._id === contact._id}
                     onClick={() => setSelectedContact(contact)}
-                    className="d-flex justify-content-between align-items-center"
+                    className="d-flex align-items-center"
                   >
-                    <div className="d-flex align-items-center">
-                      <div
-                        className="bg-info text-white rounded-circle d-flex align-items-center justify-content-center me-2"
-                        style={{
-                          width: "40px",
-                          height: "40px",
-                          fontSize: "1.2rem",
-                        }}
-                      >
-                        {contact.name?.charAt(0)}
-                      </div>
-                      <div>
+                    <div
+                      className="bg-info text-white rounded-circle d-flex align-items-center justify-content-center me-2"
+                      style={{
+                        width: "40px",
+                        height: "40px",
+                        fontSize: "1.2rem",
+                      }}
+                    >
+                      {contact.name?.charAt(0)}
+                    </div>
+                    <div className="flex-grow-1">
+                      <div className="d-flex justify-content-between">
                         <strong>{contact.name}</strong>
-                        <br />
-                        <small className="text-muted">
-                          <Badge
-                            bg={contact.role === "teacher" ? "info" : "success"}
-                            className="me-1"
-                          >
-                            {contact.role}
-                          </Badge>
-                          {contact.course ||
-                            contact.department ||
-                            contact.class}
-                        </small>
+                        <Badge
+                          bg={contact.role === "teacher" ? "info" : "success"}
+                          pill
+                        >
+                          {contact.role}
+                        </Badge>
                       </div>
+                      <small className="text-muted">
+                        {contact.course || contact.department || contact.class}
+                      </small>
                     </div>
                   </ListGroup.Item>
                 ))
@@ -350,36 +385,42 @@ const Chat = () => {
           <Card className="shadow-sm h-100">
             <Card.Header className="bg-light">
               {selectedContact ? (
-                <div className="d-flex align-items-center">
-                  <div
-                    className="bg-info text-white rounded-circle d-flex align-items-center justify-content-center me-2"
-                    style={{
-                      width: "40px",
-                      height: "40px",
-                      fontSize: "1.2rem",
-                    }}
-                  >
-                    {selectedContact.name?.charAt(0)}
+                <div className="d-flex align-items-center justify-content-between">
+                  <div className="d-flex align-items-center">
+                    <div
+                      className="bg-info text-white rounded-circle d-flex align-items-center justify-content-center me-2"
+                      style={{
+                        width: "40px",
+                        height: "40px",
+                        fontSize: "1.2rem",
+                      }}
+                    >
+                      {selectedContact.name?.charAt(0)}
+                    </div>
+                    <div>
+                      <h5 className="mb-0">{selectedContact.name}</h5>
+                      <small className="text-muted">
+                        <Badge
+                          bg={
+                            selectedContact.role === "teacher"
+                              ? "info"
+                              : "success"
+                          }
+                          className="me-2"
+                        >
+                          {selectedContact.role}
+                        </Badge>
+                        {contactTyping && (
+                          <span className="text-success">
+                            <i className="bi bi-chat-dots me-1"></i>typing...
+                          </span>
+                        )}
+                      </small>
+                    </div>
                   </div>
-                  <div>
-                    <h5 className="mb-0">{selectedContact.name}</h5>
-                    <small className="text-muted">
-                      <Badge
-                        bg={
-                          selectedContact.role === "teacher"
-                            ? "info"
-                            : "success"
-                        }
-                      >
-                        {selectedContact.role}
-                      </Badge>
-                      {contactTyping && (
-                        <span className="text-success ms-2">
-                          <i className="bi bi-chat-dots me-1"></i>typing...
-                        </span>
-                      )}
-                    </small>
-                  </div>
+                  <Badge bg={isConnected ? "success" : "danger"}>
+                    {isConnected ? "Online" : "Offline"}
+                  </Badge>
                 </div>
               ) : (
                 <h5 className="mb-0">Select a contact to start chatting</h5>
@@ -395,36 +436,42 @@ const Chat = () => {
             >
               {selectedContact ? (
                 <>
-                  {messages.map((msg) => (
-                    <div
-                      key={msg._id}
-                      className={`d-flex mb-3 ${
-                        msg.sender === user?._id
-                          ? "justify-content-end"
-                          : "justify-content-start"
-                      }`}
-                    >
+                  {messages.length > 0 ? (
+                    messages.map((msg) => (
                       <div
-                        className={`p-3 rounded ${
+                        key={msg._id}
+                        className={`d-flex mb-3 ${
                           msg.sender === user?._id
-                            ? "bg-primary text-white"
-                            : "bg-white"
+                            ? "justify-content-end"
+                            : "justify-content-start"
                         }`}
-                        style={{ maxWidth: "70%" }}
                       >
-                        {msg.message}
                         <div
-                          className={`text-end small ${
+                          className={`p-3 rounded ${
                             msg.sender === user?._id
-                              ? "text-white-50"
-                              : "text-muted"
+                              ? "bg-primary text-white"
+                              : "bg-white"
                           }`}
+                          style={{ maxWidth: "70%" }}
                         >
-                          {formatTime(msg.timestamp)}
+                          {msg.message}
+                          <div
+                            className={`text-end small ${
+                              msg.sender === user?._id
+                                ? "text-white-50"
+                                : "text-muted"
+                            }`}
+                          >
+                            {formatTime(msg.timestamp)}
+                          </div>
                         </div>
                       </div>
+                    ))
+                  ) : (
+                    <div className="text-center text-muted py-5">
+                      <p>No messages yet. Start the conversation!</p>
                     </div>
-                  ))}
+                  )}
                   <div ref={messagesEndRef} />
                 </>
               ) : (
@@ -441,27 +488,16 @@ const Chat = () => {
                   <InputGroup>
                     <Form.Control
                       type="text"
-                      placeholder="Type a message..."
+                      placeholder={
+                        isConnected ? "Type a message..." : "Connecting..."
+                      }
                       value={newMessage}
                       onChange={(e) => {
                         setNewMessage(e.target.value);
-                        handleTyping();
+                        if (isConnected) handleTyping();
                       }}
                       disabled={!isConnected}
                     />
-                    <input
-                      type="file"
-                      ref={fileInputRef}
-                      onChange={handleFileChange}
-                      style={{ display: "none" }}
-                    />
-                    <Button
-                      variant="outline-secondary"
-                      onClick={handleFileUpload}
-                      disabled={!isConnected}
-                    >
-                      <i className="bi bi-paperclip"></i>
-                    </Button>
                     <Button
                       type="submit"
                       variant="primary"
@@ -471,12 +507,12 @@ const Chat = () => {
                     </Button>
                   </InputGroup>
                 </Form>
-                <div className="text-muted small mt-2">
-                  <i
-                    className={`bi bi-circle-fill me-1 ${isConnected ? "text-success" : "text-danger"}`}
-                  ></i>
-                  {isConnected ? "Connected" : "Disconnected"}
-                </div>
+                {!isConnected && (
+                  <div className="text-danger small mt-2">
+                    <i className="bi bi-exclamation-triangle me-1"></i>
+                    Not connected to chat server. Trying to reconnect...
+                  </div>
+                )}
               </Card.Footer>
             )}
           </Card>
