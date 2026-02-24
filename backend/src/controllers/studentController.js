@@ -80,12 +80,13 @@ const getStudentById = async (req, res) => {
 };
 
 // Get student profile (current user)
+// Get student profile (current user) - FIX THIS FUNCTION
 const getStudentProfile = async (req, res) => {
   try {
-    const student = await Student.findOne({ userId: req.user._id }).populate(
-      "parents",
-      "username email",
-    );
+    // Find student by userId
+    const student = await Student.findOne({ userId: req.user._id })
+      .populate("userId", "username email profilePicture")
+      .populate("parents", "username email");
 
     if (!student) {
       return res.status(404).json({
@@ -94,18 +95,9 @@ const getStudentProfile = async (req, res) => {
       });
     }
 
-    // Get enrolled courses
-    const courses = await Course.find({ students: student._id }).populate(
-      "teacher",
-      "firstName lastName",
-    );
-
     res.json({
       success: true,
-      data: {
-        ...student.toObject(),
-        courses,
-      },
+      data: student,
     });
   } catch (error) {
     console.error("Get student profile error:", error);
@@ -193,20 +185,63 @@ const createStudent = async (req, res) => {
   }
 };
 
-// Update student
+// Update student - FIX PERMISSIONS
 const updateStudent = async (req, res) => {
   try {
-    const student = await Student.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true,
-    });
+    const { id } = req.params;
+    const updateData = req.body;
+    const userId = req.user._id;
+    const userRole = req.user.role;
 
-    if (!student) {
+    // Find the student to check ownership
+    const existingStudent = await Student.findById(id);
+
+    if (!existingStudent) {
       return res.status(404).json({
         success: false,
         message: "Student not found",
       });
     }
+
+    // Check permissions: Admin can update any student, student can only update their own
+    const isAdmin = userRole === "admin";
+    const isOwnProfile =
+      existingStudent.userId.toString() === userId.toString();
+
+    if (!isAdmin && !isOwnProfile) {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied. You can only update your own profile.",
+      });
+    }
+
+    // Remove fields that shouldn't be updated
+    delete updateData._id;
+    delete updateData.userId;
+    delete updateData.studentId;
+    delete updateData.enrollmentDate;
+
+    // Students can only update certain fields
+    if (!isAdmin) {
+      // Allow students to update only these fields
+      const allowedFields = [
+        "firstName",
+        "lastName",
+        "phone",
+        "address",
+        "emergencyContact",
+      ];
+      Object.keys(updateData).forEach((key) => {
+        if (!allowedFields.includes(key)) {
+          delete updateData[key];
+        }
+      });
+    }
+
+    const student = await Student.findByIdAndUpdate(id, updateData, {
+      new: true,
+      runValidators: true,
+    }).populate("userId", "email username");
 
     res.json({
       success: true,
@@ -218,6 +253,7 @@ const updateStudent = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Server error updating student",
+      error: error.message,
     });
   }
 };

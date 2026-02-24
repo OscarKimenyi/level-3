@@ -161,20 +161,64 @@ const createTeacher = async (req, res) => {
   }
 };
 
-// Update teacher
+// Update teacher - FIX PERMISSIONS
 const updateTeacher = async (req, res) => {
   try {
-    const teacher = await Teacher.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true,
-    });
+    const { id } = req.params;
+    const updateData = req.body;
+    const userId = req.user._id;
+    const userRole = req.user.role;
 
-    if (!teacher) {
+    // Find the teacher to check ownership
+    const existingTeacher = await Teacher.findById(id);
+
+    if (!existingTeacher) {
       return res.status(404).json({
         success: false,
         message: "Teacher not found",
       });
     }
+
+    // Check permissions: Admin can update any teacher, teacher can only update their own
+    const isAdmin = userRole === "admin";
+    const isOwnProfile =
+      existingTeacher.userId.toString() === userId.toString();
+
+    if (!isAdmin && !isOwnProfile) {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied. You can only update your own profile.",
+      });
+    }
+
+    // Remove fields that shouldn't be updated
+    delete updateData._id;
+    delete updateData.userId;
+    delete updateData.teacherId;
+    delete updateData.assignedCourses;
+    delete updateData.joiningDate;
+
+    // Teachers can only update certain fields
+    if (!isAdmin) {
+      // Allow teachers to update only these fields
+      const allowedFields = [
+        "firstName",
+        "lastName",
+        "contactNumber",
+        "qualification",
+        "specialization",
+      ];
+      Object.keys(updateData).forEach((key) => {
+        if (!allowedFields.includes(key)) {
+          delete updateData[key];
+        }
+      });
+    }
+
+    const teacher = await Teacher.findByIdAndUpdate(id, updateData, {
+      new: true,
+      runValidators: true,
+    }).populate("userId", "email username");
 
     res.json({
       success: true,
@@ -186,6 +230,7 @@ const updateTeacher = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Server error updating teacher",
+      error: error.message,
     });
   }
 };
