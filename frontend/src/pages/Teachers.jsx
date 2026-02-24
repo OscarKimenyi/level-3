@@ -68,7 +68,7 @@ const Teachers = () => {
     setPage(1);
   };
 
-  // Fix the handleAddTeacher function
+  // Handle Add Teacher - FIX THIS FUNCTION
   const handleAddTeacher = async () => {
     try {
       setSubmitting(true);
@@ -86,29 +86,61 @@ const Teachers = () => {
         return;
       }
 
-      // Create a unique username from email (add timestamp to ensure uniqueness)
+      // Create a unique username from email (without timestamp for cleaner display)
       const baseUsername = formData.email.split("@")[0];
-      const uniqueUsername = `${baseUsername}_${Date.now()}`;
+      // Don't add timestamp to username for cleaner display
+      const username = baseUsername;
 
-      // First create user account
-      const userResponse = await api.post("/auth/register", {
-        username: uniqueUsername, // Use unique username
+      console.log("Creating teacher with data:", {
+        username,
         email: formData.email,
-        password: "teacher123", // Default password
         role: "teacher",
         firstName: formData.firstName,
         lastName: formData.lastName,
         phone: formData.phone,
         qualification: formData.qualification,
         department: formData.department,
+        specialization: formData.specialization,
       });
 
-      if (userResponse.data.success) {
-        setSuccess("Teacher added successfully! Default password: teacher123");
-        setShowAddModal(false);
-        resetForm();
-        fetchTeachers(); // Refresh the list
+      // First create user account
+      const userResponse = await api.post("/auth/register", {
+        username: username,
+        email: formData.email,
+        password: "teacher123", // Default password
+        role: "teacher",
+      });
+
+      console.log("User created:", userResponse.data);
+
+      if (!userResponse.data.success) {
+        throw new Error(userResponse.data.message || "Failed to create user");
       }
+
+      // THEN create teacher profile with the userId
+      const teacherData = {
+        userId: userResponse.data.user.id,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        qualification: formData.qualification,
+        specialization: formData.specialization
+          ? formData.specialization.split(",").map((s) => s.trim())
+          : [],
+        contactNumber: formData.phone,
+        department: formData.department,
+        joiningDate: formData.joiningDate || new Date(),
+      };
+
+      console.log("Creating teacher profile with data:", teacherData);
+
+      const teacherResponse = await api.post("/teachers", teacherData);
+
+      console.log("Teacher profile created:", teacherResponse.data);
+
+      setSuccess("Teacher added successfully! Default password: teacher123");
+      setShowAddModal(false);
+      resetForm();
+      fetchTeachers(); // Refresh the list
 
       setTimeout(() => setSuccess(""), 3000);
     } catch (err) {
@@ -118,7 +150,7 @@ const Teachers = () => {
       if (err.response?.data?.message) {
         setError(err.response.data.message);
       } else {
-        setError("Failed to add teacher");
+        setError("Failed to add teacher. Please try again.");
       }
     } finally {
       setSubmitting(false);

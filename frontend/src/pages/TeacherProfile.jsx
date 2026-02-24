@@ -24,8 +24,9 @@ const TeacherProfile = () => {
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState(""); // Added missing state
+  const [success, setSuccess] = useState("");
   const [editing, setEditing] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState({});
 
   // Update the fetchTeacherProfile function
@@ -50,7 +51,7 @@ const TeacherProfile = () => {
         firstName: teacherData.firstName || "",
         lastName: teacherData.lastName || "",
         contactNumber: teacherData.contactNumber || "",
-        qualification: teacherData.qualification || "",
+        //qualification: teacherData.qualification || "",
         specialization: Array.isArray(teacherData.specialization)
           ? teacherData.specialization.join(", ")
           : teacherData.specialization || "",
@@ -72,11 +73,12 @@ const TeacherProfile = () => {
 
   useEffect(() => {
     fetchTeacherProfile();
-  }, [fetchTeacherProfile]); // Now fetchTeacherProfile is stable and can be included
+  }, [fetchTeacherProfile]);
 
   // Update the handleUpdateProfile function
   const handleUpdateProfile = async () => {
     try {
+      setSubmitting(true);
       setError("");
 
       // Validate required fields
@@ -86,20 +88,28 @@ const TeacherProfile = () => {
         !formData.contactNumber
       ) {
         setError("Please fill in all required fields");
+        setSubmitting(false);
         return;
       }
+
+      // Parse specialization from comma-separated string to array
+      const specializationArray = formData.specialization
+        ? formData.specialization
+            .split(",")
+            .map((s) => s.trim())
+            .filter((s) => s)
+        : [];
 
       const updateData = {
         firstName: formData.firstName,
         lastName: formData.lastName,
         contactNumber: formData.contactNumber,
-        qualification: formData.qualification,
-        specialization: formData.specialization
-          .split(",")
-          .map((s) => s.trim())
-          .filter((s) => s),
+        //qualification: formData.qualification,
+        specialization: specializationArray,
         department: formData.department,
       };
+
+      console.log("Updating teacher with data:", updateData);
 
       const response = await api.put(`/teachers/${teacher._id}`, updateData);
 
@@ -114,6 +124,8 @@ const TeacherProfile = () => {
     } catch (err) {
       console.error("Error updating profile:", err);
       setError(err.response?.data?.message || "Failed to update profile");
+    } finally {
+      setSubmitting(false);
     }
   };
   const handleChange = (e) => {
@@ -206,7 +218,12 @@ const TeacherProfile = () => {
                 </p>
                 <p>
                   <strong>Specialization:</strong>{" "}
-                  {teacher.specialization?.join(", ")}
+                  {Array.isArray(teacher.specialization)
+                    ? teacher.specialization.join(", ")
+                    : teacher.specialization || "Not specified"}
+                </p>
+                <p>
+                  <strong>Department:</strong> {teacher.department || "General"}
                 </p>
                 <p>
                   <strong>Joined:</strong> {formatDate(teacher.joiningDate)}
@@ -336,8 +353,53 @@ const TeacherProfile = () => {
                         />
                       </Form.Group>
 
-                      <Button variant="primary" onClick={handleUpdateProfile}>
-                        Save Changes
+                      <Form.Group className="mb-3">
+                        <Form.Label>
+                          Specialization (comma separated)
+                        </Form.Label>
+                        <Form.Control
+                          type="text"
+                          name="specialization"
+                          value={formData.specialization || ""}
+                          onChange={handleChange}
+                          placeholder="e.g., Mathematics, Physics, Chemistry"
+                        />
+                        <Form.Text className="text-muted">
+                          Enter multiple specializations separated by commas
+                        </Form.Text>
+                      </Form.Group>
+
+                      <Form.Group className="mb-3">
+                        <Form.Label>Department</Form.Label>
+                        <Form.Select
+                          name="department"
+                          value={formData.department || ""}
+                          onChange={handleChange}
+                        >
+                          <option value="">Select Department</option>
+                          <option value="Mathematics">Mathematics</option>
+                          <option value="Science">Science</option>
+                          <option value="English">English</option>
+                          <option value="History">History</option>
+                          <option value="Computer Science">
+                            Computer Science
+                          </option>
+                        </Form.Select>
+                      </Form.Group>
+
+                      <Button
+                        variant="primary"
+                        onClick={handleUpdateProfile}
+                        disabled={submitting}
+                      >
+                        {submitting ? (
+                          <>
+                            <span className="spinner-border spinner-border-sm me-2"></span>
+                            Saving...
+                          </>
+                        ) : (
+                          "Save Changes"
+                        )}
                       </Button>
                     </Form>
                   )}
