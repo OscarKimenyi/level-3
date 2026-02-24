@@ -69,13 +69,10 @@ const StudentDetails = () => {
     } finally {
       setLoading(false);
     }
-  }, [id]); // Add id as dependency since it's used inside
-
-  // Now useEffect can include fetchStudentDetails in dependencies
+  }, [id]);
   useEffect(() => {
     fetchStudentDetails();
-  }, [fetchStudentDetails]); // Include fetchStudentDetails in dependencies
-
+  }, [fetchStudentDetails]);
   const handleDelete = async () => {
     try {
       await api.delete(`/students/${id}`);

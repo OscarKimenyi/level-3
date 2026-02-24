@@ -12,7 +12,6 @@ import {
 } from "react-bootstrap";
 import { Link } from "react-router-dom";
 import useAuth from "../context/useAuth";
-// Remove the unused api import
 
 const ParentProfile = () => {
   const { user } = useAuth();

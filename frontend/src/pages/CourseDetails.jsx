@@ -16,7 +16,7 @@ import {
   ListGroup,
 } from "react-bootstrap";
 import api from "../services/api";
-import { formatDate } from "../utils/helpers"; // Remove formatTime import since it's not used
+import { formatDate } from "../utils/helpers";
 import useAuth from "../context/useAuth";
 
 const CourseDetails = () => {
@@ -84,7 +84,7 @@ const CourseDetails = () => {
       setSuccess("Student enrolled successfully");
       setShowEnrollModal(false);
       setSelectedStudent("");
-      fetchCourseDetails(); // Refresh the list
+      fetchCourseDetails();
     } catch (error) {
       setError(error.response?.data?.message || "Failed to enroll student");
     }
@@ -102,7 +102,7 @@ const CourseDetails = () => {
       // This endpoint would need to be implemented in the backend
       await api.delete(`/courses/${id}/students/${studentId}`);
       setSuccess("Student removed successfully");
-      fetchCourseDetails(); // Refresh the list
+      fetchCourseDetails();
     } catch (error) {
       console.error("Error removing student:", error);
       setError("Failed to remove student");

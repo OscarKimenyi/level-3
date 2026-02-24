@@ -51,7 +51,7 @@ const SocketProvider = ({ children }) => {
     // });
 
     socketInstance.on("connect_error", (error) => {
-      console.error("❌ Socket connection error details:", {
+      console.error("Socket connection error details:", {
         message: error.message,
         description: error.description,
         context: error.context,

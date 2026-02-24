@@ -10,7 +10,6 @@ import {
   Badge,
 } from "react-bootstrap";
 import useAuth from "../context/useAuth";
-// api is not used in this file, so we don't import it
 
 const AdminProfile = () => {
   const { user, updateProfile } = useAuth();

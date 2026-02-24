@@ -115,7 +115,7 @@ const Teachers = () => {
       if (response.data.success) {
         setSuccess("Teacher updated successfully");
         setShowEditModal(false);
-        fetchTeachers(); // Refresh the list
+        fetchTeachers();
 
         setTimeout(() => setSuccess(""), 3000);
       }
@@ -138,25 +138,23 @@ const Teachers = () => {
       );
       setTeachers(response.data.data || []);
       setTotalPages(response.data.pagination?.pages || 1);
-      setError(""); // Clear any previous errors
+      setError("");
     } catch (err) {
       console.error("Error fetching teachers:", err);
       setError("Failed to load teachers");
     } finally {
       setLoading(false);
     }
-  }, [page, search]); // Add dependencies
-
+  }, [page, search]);
   useEffect(() => {
     fetchTeachers();
-  }, [fetchTeachers]); // Now fetchTeachers is stable and can be included
-
+  }, [fetchTeachers]);
   const handleSearch = (e) => {
     e.preventDefault();
     setPage(1);
   };
 
-  // Handle Add Teacher - FIX THIS FUNCTION
+  // Handle Add Teacher
   const handleAddTeacher = async () => {
     try {
       setSubmitting(true);

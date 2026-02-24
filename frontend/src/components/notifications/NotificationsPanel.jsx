@@ -50,8 +50,7 @@ const NotificationsPanel = ({ onClose }) => {
     markAsRead,
     markAllAsRead,
     deleteNotification,
-  } = useNotifications(); // This works with default import
-
+  } = useNotifications();
   const panelRef = useRef(null);
   const navigate = useNavigate();
 

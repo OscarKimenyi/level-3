@@ -80,7 +80,6 @@ const getStudentById = async (req, res) => {
 };
 
 // Get student profile (current user)
-// Get student profile (current user) - FIX THIS FUNCTION
 const getStudentProfile = async (req, res) => {
   try {
     // Find student by userId
@@ -185,7 +184,7 @@ const createStudent = async (req, res) => {
   }
 };
 
-// Update student - FIX PERMISSIONS
+// Update student
 const updateStudent = async (req, res) => {
   try {
     const { id } = req.params;
@@ -269,10 +268,6 @@ const deleteStudent = async (req, res) => {
         message: "Student not found",
       });
     }
-
-    // Optionally delete associated user
-    // await User.findByIdAndDelete(student.userId);
-
     res.json({
       success: true,
       message: "Student deleted successfully",

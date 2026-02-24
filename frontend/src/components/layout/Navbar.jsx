@@ -79,7 +79,7 @@ const Navbar = ({ toggleSidebar, sidebarOpen }) => {
               ></i>
             </button>
 
-            {/* Connection Status - Green when connected */}
+            {/* Connection Status */}
             <button
               className="navbar-action-btn"
               title={

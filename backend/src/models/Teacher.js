@@ -57,7 +57,7 @@ const teacherSchema = new mongoose.Schema(
   },
 );
 
-// Generate teacher ID automatically - FIXED VERSION
+// Generate teacher ID automatically
 teacherSchema.pre("save", function () {
   if (!this.teacherId) {
     const year = new Date().getFullYear().toString().slice(-2);

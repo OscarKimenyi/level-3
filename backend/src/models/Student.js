@@ -73,7 +73,7 @@ const studentSchema = new mongoose.Schema(
   },
 );
 
-// Generate student ID automatically - FIXED VERSION
+// Generate student ID automatically
 studentSchema.pre("save", function () {
   if (!this.studentId) {
     const year = new Date().getFullYear().toString().slice(-2);

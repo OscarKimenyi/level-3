@@ -21,7 +21,7 @@ const createAdmin = async () => {
     const admin = new User({
       username: "admin",
       email: "admin@school.com",
-      password: "admin123", // Will be hashed by pre-save hook
+      password: "admin123",
       role: "admin",
       isActive: true,
     });

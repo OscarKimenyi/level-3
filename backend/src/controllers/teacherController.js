@@ -112,7 +112,7 @@ const getTeacherProfile = async (req, res) => {
   }
 };
 
-// Create new teacher - FIX THIS FUNCTION
+// Create new teacher
 const createTeacher = async (req, res) => {
   try {
     const teacherData = req.body;
@@ -199,7 +199,7 @@ const createTeacher = async (req, res) => {
   }
 };
 
-// Update teacher - FIX PERMISSIONS
+// Update teacher
 const updateTeacher = async (req, res) => {
   try {
     const { id } = req.params;

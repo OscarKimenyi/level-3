@@ -255,7 +255,7 @@ const sendNotification = async (req, res) => {
       count: targetUsers.length,
     });
   } catch (error) {
-    console.error("❌ Send notification error:", error);
+    console.error("Send notification error:", error);
     res.status(500).json({
       success: false,
       message: "Failed to send notification",
