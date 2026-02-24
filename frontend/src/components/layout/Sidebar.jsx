@@ -15,6 +15,7 @@ const Sidebar = ({ isOpen, closeSidebar, isMobile }) => {
     ];
 
     const adminItems = [
+      { path: "/profile/admin", icon: "bi-person", label: "My Profile" },
       { path: "/students", icon: "bi-people", label: "Students" },
       { path: "/teachers", icon: "bi-person-badge", label: "Teachers" },
       { path: "/attendance", icon: "bi-calendar-check", label: "Attendance" },
