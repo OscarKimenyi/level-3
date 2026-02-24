@@ -43,13 +43,17 @@ const TeacherProfile = () => {
       }
 
       const teacherData = response.data.data;
+      console.log("Teacher data:", teacherData); // Debug log
+
       setTeacher(teacherData);
       setFormData({
         firstName: teacherData.firstName || "",
         lastName: teacherData.lastName || "",
         contactNumber: teacherData.contactNumber || "",
         qualification: teacherData.qualification || "",
-        specialization: teacherData.specialization?.join(", ") || "",
+        specialization: Array.isArray(teacherData.specialization)
+          ? teacherData.specialization.join(", ")
+          : teacherData.specialization || "",
         department: teacherData.department || "",
       });
 
@@ -235,10 +239,10 @@ const TeacherProfile = () => {
                   )}
                 </li>
                 <li>
-                  <strong>Experience:</strong>{" "}
+                  {/* <strong>Experience:</strong>{" "}
                   {teacher.joiningDate
                     ? `${new Date().getFullYear() - new Date(teacher.joiningDate).getFullYear()} years`
-                    : "N/A"}
+                    : "N/A"} */}
                 </li>
               </ul>
             </Card.Body>
