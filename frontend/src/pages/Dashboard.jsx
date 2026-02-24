@@ -96,6 +96,12 @@ const Dashboard = () => {
   const [success, setSuccess] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  const cleanUsername = (username) => {
+    if (!username) return "User";
+    // Remove numbers and underscores at the end
+    return username.replace(/[0-9_]+$/, "");
+  };
+
   // Wrap fetchDashboardData in useCallback
   const fetchDashboardData = useCallback(async () => {
     try {
@@ -1606,7 +1612,7 @@ const Dashboard = () => {
         <div>
           <h2 className="mb-1">Dashboard</h2>
           <p className="text-muted mb-0">
-            Welcome back, {user?.username || "User"}!
+            Welcome back, {cleanUsername(user?.username)}!
           </p>
         </div>
         <Badge bg="info" className="fs-6">
