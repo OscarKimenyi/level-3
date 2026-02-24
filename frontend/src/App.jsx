@@ -6,106 +6,102 @@ import {
 } from "react-router-dom";
 import AuthProvider from "./context/AuthProvider";
 import SocketProvider from "./context/SocketProvider";
-import PrivateRoute from "./components/common/PrivateRoute";
 import { NotificationProvider } from "./context/NotificationProvider";
-
-// Layout
+import { ThemeProvider } from "./context/ThemeProvider";
+import PrivateRoute from "./components/common/PrivateRoute";
 import Layout from "./components/layout/Layout";
 
-// Auth Pages
+// Pages
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
-
-// Dashboard Pages
 import Dashboard from "./pages/Dashboard";
-
-// Admin Page
-import AdminProfile from "./pages/AdminProfile";
-
-// Student Pages
 import Students from "./pages/Students";
 import StudentProfile from "./pages/StudentProfile";
 import StudentDetails from "./pages/StudentDetails";
-
-// Teacher Pages
 import Teachers from "./pages/Teachers";
 import TeacherProfile from "./pages/TeacherProfile";
-
-// Course Pages
+import AdminProfile from "./pages/AdminProfile";
+import ParentProfile from "./pages/ParentProfile";
 import Courses from "./pages/Courses";
 import CourseDetails from "./pages/CourseDetails";
-
-// Attendance Pages
 import Attendance from "./pages/Attendance";
-
-// Assignment Pages
 import Assignments from "./pages/Assignments";
-
-// Chat Page
 import Chat from "./pages/Chat";
+
+import "./styles/global.css";
 
 function App() {
   return (
     <Router>
-      <AuthProvider>
-        <SocketProvider>
-          <NotificationProvider>
-            <Routes>
-              {/* Public Routes */}
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
-              <Route path="/forgot-password" element={<ForgotPassword />} />
-              <Route
-                path="/reset-password/:token"
-                element={<ResetPassword />}
-              />
-
-              {/* Protected Routes */}
-              <Route
-                element={
-                  <PrivateRoute>
-                    <Layout />
-                  </PrivateRoute>
-                }
-              >
+      <ThemeProvider>
+        <AuthProvider>
+          <SocketProvider>
+            <NotificationProvider>
+              <Routes>
+                {/* Public Routes */}
+                <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
+                <Route path="/forgot-password" element={<ForgotPassword />} />
                 <Route
-                  path="/"
+                  path="/reset-password/:token"
+                  element={<ResetPassword />}
+                />
+
+                {/* Protected Routes */}
+                <Route
+                  element={
+                    <PrivateRoute>
+                      <Layout />
+                    </PrivateRoute>
+                  }
+                >
+                  <Route
+                    path="/"
+                    element={<Navigate to="/dashboard" replace />}
+                  />
+                  <Route path="/dashboard" element={<Dashboard />} />
+
+                  {/* Student Routes */}
+                  <Route path="/students" element={<Students />} />
+                  <Route path="/students/:id" element={<StudentDetails />} />
+                  <Route path="/profile/student" element={<StudentProfile />} />
+
+                  {/* Teacher Routes */}
+                  <Route path="/teachers" element={<Teachers />} />
+                  <Route path="/profile/teacher" element={<TeacherProfile />} />
+
+                  {/* Admin Route */}
+                  <Route path="/profile/admin" element={<AdminProfile />} />
+
+                  {/* Parent Route */}
+                  <Route path="/profile/parent" element={<ParentProfile />} />
+
+                  {/* Course Routes */}
+                  <Route path="/courses" element={<Courses />} />
+                  <Route path="/courses/:id" element={<CourseDetails />} />
+
+                  {/* Attendance Routes */}
+                  <Route path="/attendance" element={<Attendance />} />
+
+                  {/* Assignment Routes */}
+                  <Route path="/assignments" element={<Assignments />} />
+
+                  {/* Chat Route */}
+                  <Route path="/chat" element={<Chat />} />
+                </Route>
+
+                {/* Catch all route */}
+                <Route
+                  path="*"
                   element={<Navigate to="/dashboard" replace />}
                 />
-                <Route path="/dashboard" element={<Dashboard />} />
-
-                <Route path="/profile/admin" element={<AdminProfile />} />
-                {/* Student Routes */}
-                <Route path="/students" element={<Students />} />
-                <Route path="/students/:id" element={<StudentDetails />} />
-                <Route path="/profile/student" element={<StudentProfile />} />
-
-                {/* Teacher Routes */}
-                <Route path="/teachers" element={<Teachers />} />
-                <Route path="/profile/teacher" element={<TeacherProfile />} />
-
-                {/* Course Routes */}
-                <Route path="/courses" element={<Courses />} />
-                <Route path="/courses/:id" element={<CourseDetails />} />
-
-                {/* Attendance Routes */}
-                <Route path="/attendance" element={<Attendance />} />
-
-                {/* Assignment Routes */}
-                <Route path="/assignments" element={<Assignments />} />
-
-                {/* Chat Route */}
-                <Route path="/chat" element={<Chat />} />
-              </Route>
-
-              {/* Catch all route */}
-              <Route path="*" element={<Navigate to="/dashboard" replace />} />
-            </Routes>
-          </NotificationProvider>
-        </SocketProvider>
-      </AuthProvider>
+              </Routes>
+            </NotificationProvider>
+          </SocketProvider>
+        </AuthProvider>
+      </ThemeProvider>
     </Router>
   );
 }

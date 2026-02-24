@@ -1,8 +1,46 @@
 import React, { useEffect, useRef } from "react";
 import { Card, ListGroup, Badge, Button, Spinner } from "react-bootstrap";
-import { formatDistanceToNow } from "date-fns";
-import useNotifications from "../../context/useNotifications";
+import useNotifications from "../../context/useNotifications"; // Changed to default import
 import { useNavigate } from "react-router-dom";
+
+// Custom date formatter function
+const formatDistanceToNow = (date) => {
+  const now = new Date();
+  const past = new Date(date);
+  const diffInSeconds = Math.floor((now - past) / 1000);
+
+  if (diffInSeconds < 60) {
+    return "just now";
+  }
+
+  const diffInMinutes = Math.floor(diffInSeconds / 60);
+  if (diffInMinutes < 60) {
+    return `${diffInMinutes} minute${diffInMinutes > 1 ? "s" : ""} ago`;
+  }
+
+  const diffInHours = Math.floor(diffInMinutes / 60);
+  if (diffInHours < 24) {
+    return `${diffInHours} hour${diffInHours > 1 ? "s" : ""} ago`;
+  }
+
+  const diffInDays = Math.floor(diffInHours / 24);
+  if (diffInDays < 7) {
+    return `${diffInDays} day${diffInDays > 1 ? "s" : ""} ago`;
+  }
+
+  const diffInWeeks = Math.floor(diffInDays / 7);
+  if (diffInWeeks < 4) {
+    return `${diffInWeeks} week${diffInWeeks > 1 ? "s" : ""} ago`;
+  }
+
+  const diffInMonths = Math.floor(diffInDays / 30);
+  if (diffInMonths < 12) {
+    return `${diffInMonths} month${diffInMonths > 1 ? "s" : ""} ago`;
+  }
+
+  const diffInYears = Math.floor(diffInDays / 365);
+  return `${diffInYears} year${diffInYears > 1 ? "s" : ""} ago`;
+};
 
 const NotificationsPanel = ({ onClose }) => {
   const {
@@ -12,7 +50,7 @@ const NotificationsPanel = ({ onClose }) => {
     markAsRead,
     markAllAsRead,
     deleteNotification,
-  } = useNotifications();
+  } = useNotifications(); // This works with default import
 
   const panelRef = useRef(null);
   const navigate = useNavigate();
@@ -55,7 +93,7 @@ const NotificationsPanel = ({ onClose }) => {
 
   const formatTime = (date) => {
     try {
-      return formatDistanceToNow(new Date(date), { addSuffix: true });
+      return formatDistanceToNow(date);
     } catch {
       return "recently";
     }

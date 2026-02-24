@@ -1,6 +1,5 @@
 import React from "react";
-import { NavLink as RouterNavLink, useLocation } from "react-router-dom";
-import { Nav } from "react-bootstrap";
+import { NavLink, useLocation } from "react-router-dom";
 import useAuth from "../../context/useAuth";
 
 const Sidebar = ({ isOpen, closeSidebar, isMobile }) => {
@@ -58,23 +57,9 @@ const Sidebar = ({ isOpen, closeSidebar, isMobile }) => {
     }
   };
 
-  // Helper function to determine if a path is active
-  const isActivePath = (path) => {
-    return location.pathname === path;
-  };
-
-  if (!isOpen && isMobile) {
-    return null;
-  }
-
   return (
     <div
-      className="sidebar-modern"
-      style={{
-        width: isOpen ? "280px" : isMobile ? "0" : "280px",
-        transform: `translateX(${isOpen ? "0" : isMobile ? "-100%" : "0"})`,
-        transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-      }}
+      className={`sidebar-modern ${!isOpen ? "collapsed" : ""} ${isOpen && isMobile ? "open" : ""}`}
     >
       <div className="sidebar-header">
         <div className="sidebar-brand">
@@ -88,40 +73,39 @@ const Sidebar = ({ isOpen, closeSidebar, isMobile }) => {
         )}
       </div>
 
-      <div className="sidebar-user">
-        <div className="user-avatar">
-          {user?.username?.charAt(0).toUpperCase()}
+      {user && (
+        <div className="sidebar-user">
+          <div className="user-avatar">
+            {user.username?.charAt(0).toUpperCase()}
+          </div>
+          <div className="user-info">
+            <div className="user-name">{user.username}</div>
+            <div className="user-email">{user.email}</div>
+          </div>
         </div>
-        <div className="user-details">
-          <div className="user-name">{user?.username}</div>
-          <div className="user-email">{user?.email}</div>
-        </div>
-      </div>
+      )}
 
-      <Nav className="sidebar-nav flex-column">
+      <nav className="sidebar-nav">
         {navItems.map((item, index) => {
-          const isActive = isActivePath(item.path);
+          const isActive = location.pathname === item.path;
 
           return (
-            <Nav.Link
+            <NavLink
               key={index}
-              as={RouterNavLink}
               to={item.path}
               className={`sidebar-link ${isActive ? "active" : ""}`}
               onClick={handleLinkClick}
             >
-              <i className={`bi ${item.icon} sidebar-icon`}></i>
-              <span className="sidebar-label">{item.label}</span>
-              {item.badge && (
-                <span className="sidebar-badge">{item.badge}</span>
-              )}
-            </Nav.Link>
+              <i className={`bi ${item.icon}`}></i>
+              <span>{item.label}</span>
+              {item.badge && <span className="badge">{item.badge}</span>}
+            </NavLink>
           );
         })}
-      </Nav>
+      </nav>
 
       <div className="sidebar-footer">
-        <div className="sidebar-version">v1.0.0</div>
+        <span>Version 1.0.0</span>
       </div>
     </div>
   );

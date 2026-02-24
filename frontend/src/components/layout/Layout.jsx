@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import { Outlet } from "react-router-dom";
 import Navbar from "./Navbar";
 import Sidebar from "./Sidebar";
-import Footer from "./Footer";
 
 const Layout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -24,11 +23,15 @@ const Layout = () => {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  return (
-    <div className="d-flex flex-column min-vh-100">
-      <Navbar toggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
+  const toggleSidebar = () => {
+    setSidebarOpen(!sidebarOpen);
+  };
 
-      <div className="d-flex flex-fill position-relative">
+  return (
+    <div className="app">
+      <Navbar toggleSidebar={toggleSidebar} sidebarOpen={sidebarOpen} />
+
+      <div className="main-wrapper">
         <Sidebar
           isOpen={sidebarOpen}
           closeSidebar={() => setSidebarOpen(false)}
@@ -36,20 +39,13 @@ const Layout = () => {
         />
 
         <main
-          className="flex-fill p-3"
-          style={{
-            marginLeft: !isMobile && sidebarOpen ? "250px" : "0",
-            transition: "margin-left 0.3s ease",
-            width: "100%",
-          }}
+          className={`content-wrapper ${!sidebarOpen ? "sidebar-collapsed" : ""}`}
         >
-          <div className="container-fluid">
+          <div className="content-container animate-slide-in">
             <Outlet />
           </div>
         </main>
       </div>
-
-      <Footer />
     </div>
   );
 };

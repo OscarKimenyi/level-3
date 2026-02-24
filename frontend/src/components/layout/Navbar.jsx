@@ -1,36 +1,19 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import {
-  Container,
-  Navbar as BootstrapNavbar,
-  Nav,
-  NavDropdown,
-  Badge,
-  Button,
-} from "react-bootstrap";
 import useAuth from "../../context/useAuth";
 import useSocket from "../../context/useSocket";
-import { useNotifications } from "../../context/useNotifications";
+import useNotifications from "../../context/useNotifications";
+import useTheme from "../../context/useTheme";
 import NotificationsPanel from "../notifications/NotificationsPanel";
 
-const Navbar = ({ toggleSidebar }) => {
+const Navbar = ({ toggleSidebar, sidebarOpen }) => {
   const { user, logout } = useAuth();
   const { isConnected } = useSocket();
   const { unreadCount, panelOpen, setPanelOpen } = useNotifications();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
-  const [darkMode, setDarkMode] = useState(
-    localStorage.getItem("darkMode") === "true",
-  );
   const [scrolled, setScrolled] = useState(false);
-
-  useEffect(() => {
-    if (darkMode) {
-      document.body.classList.add("dark-mode");
-    } else {
-      document.body.classList.remove("dark-mode");
-    }
-    localStorage.setItem("darkMode", darkMode);
-  }, [darkMode]);
+  const [showUserMenu, setShowUserMenu] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -45,151 +28,157 @@ const Navbar = ({ toggleSidebar }) => {
     navigate("/login");
   };
 
-  const toggleDarkMode = () => {
-    setDarkMode(!darkMode);
-  };
-
   const cleanUsername = (username) => {
     if (!username) return "User";
     return username.replace(/[0-9_]+$/, "");
   };
 
   return (
-    <BootstrapNavbar
-      expand="lg"
-      className={`navbar-modern sticky-top py-2 ${scrolled ? "navbar-scrolled" : ""} ${darkMode ? "navbar-dark" : "navbar-light"}`}
-      style={{
-        background: darkMode
-          ? "linear-gradient(135deg, #1e1e2f 0%, #2d2d44 100%)"
-          : "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-        transition: "all 0.3s ease",
-        boxShadow: scrolled ? "0 4px 20px rgba(0,0,0,0.1)" : "none",
-      }}
-    >
-      <Container fluid>
-        <div className="d-flex align-items-center">
-          <Button
-            variant="link"
-            className="sidebar-toggle p-0 me-3 d-lg-none"
+    <nav className={`navbar-modern ${scrolled ? "navbar-scrolled" : ""}`}>
+      <div className="navbar-container">
+        <div className="navbar-left">
+          <button
+            className="navbar-action-btn d-lg-none"
             onClick={toggleSidebar}
-            style={{ color: "#fff", fontSize: "1.5rem" }}
+            aria-label="Toggle sidebar"
           >
-            <i className="bi bi-list"></i>
-          </Button>
+            <i className={`bi bi-${sidebarOpen ? "x" : "list"}`}></i>
+          </button>
 
-          <BootstrapNavbar.Brand
-            as={Link}
-            to="/dashboard"
-            className="fw-bold d-flex align-items-center"
-          >
-            <div className="brand-icon me-2">
-              <i
-                className="bi bi-mortarboard-fill"
-                style={{ fontSize: "1.8rem" }}
-              ></i>
+          <Link to="/dashboard" className="navbar-brand">
+            <div className="brand-icon">
+              <i className="bi bi-mortarboard-fill"></i>
             </div>
-            <span
-              className="brand-text"
-              style={{ fontSize: "1.4rem", fontWeight: "600" }}
-            >
-              SMS
-            </span>
-          </BootstrapNavbar.Brand>
+            <span>SMS</span>
+          </Link>
         </div>
 
-        <div className="d-flex align-items-center gap-3">
-          {/* Dark Mode Toggle */}
-          <Button
-            variant="link"
-            className="theme-toggle p-0"
-            onClick={toggleDarkMode}
-            style={{ color: "#fff", fontSize: "1.3rem" }}
-          >
-            <i
-              className={`bi ${darkMode ? "bi-sun-fill" : "bi-moon-fill"}`}
-            ></i>
-          </Button>
-
-          {/* Connection Status - Hidden on mobile */}
-          <div className="connection-status d-none d-md-flex align-items-center">
-            <span
-              className={`status-dot ${isConnected ? "connected" : "disconnected"}`}
-            ></span>
-            <span
-              className="status-text ms-2"
-              style={{ color: "#fff", fontSize: "0.9rem" }}
+        <div className="navbar-right">
+          <div className="navbar-actions">
+            {/* Theme Toggle */}
+            <button
+              className="navbar-action-btn"
+              onClick={toggleTheme}
+              aria-label="Toggle theme"
             >
-              {isConnected ? "Online" : "Offline"}
-            </span>
-          </div>
+              <i
+                className={`bi bi-${theme === "light" ? "moon-fill" : "sun-fill"}`}
+              ></i>
+            </button>
 
-          {/* Notifications */}
-          <div className="notifications-wrapper position-relative">
-            <Button
-              variant="link"
-              className="p-0 position-relative"
-              onClick={() => setPanelOpen(!panelOpen)}
-              style={{ color: "#fff", fontSize: "1.3rem" }}
-            >
-              <i className="bi bi-bell"></i>
-              {unreadCount > 0 && (
-                <span className="notification-badge">
-                  {unreadCount > 9 ? "9+" : unreadCount}
-                </span>
+            {/* Connection Status */}
+            <button className="navbar-action-btn">
+              <i
+                className={`bi bi-circle-fill ${isConnected ? "text-success" : "text-danger"}`}
+              ></i>
+            </button>
+
+            {/* Notifications */}
+            <div className="position-relative">
+              <button
+                className="navbar-action-btn"
+                onClick={() => setPanelOpen(!panelOpen)}
+              >
+                <i className="bi bi-bell-fill"></i>
+                {unreadCount > 0 && (
+                  <span className="notification-badge">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
+              </button>
+              {panelOpen && (
+                <NotificationsPanel onClose={() => setPanelOpen(false)} />
               )}
-            </Button>
-
-            {panelOpen && (
-              <NotificationsPanel onClose={() => setPanelOpen(false)} />
-            )}
+            </div>
           </div>
 
           {/* User Menu */}
-          <div className="user-menu">
-            <div className="dropdown">
-              <Button
-                variant="link"
-                className="p-0 d-flex align-items-center"
-                data-bs-toggle="dropdown"
-                style={{ color: "#fff", textDecoration: "none" }}
-              >
-                <div className="user-avatar me-2">
-                  <i
-                    className="bi bi-person-circle"
-                    style={{ fontSize: "1.8rem" }}
-                  ></i>
-                </div>
-                <div className="user-info d-none d-md-block">
-                  <div className="user-name" style={{ fontWeight: "500" }}>
-                    {cleanUsername(user?.username)}
-                  </div>
-                  <div
-                    className="user-role"
-                    style={{ fontSize: "0.8rem", opacity: 0.8 }}
-                  >
-                    {user?.role}
-                  </div>
-                </div>
-                <i className="bi bi-chevron-down ms-1 d-none d-md-block"></i>
-              </Button>
-
-              <div className="dropdown-menu dropdown-menu-end modern-dropdown">
-                <Link className="dropdown-item" to={`/profile/${user?.role}`}>
-                  <i className="bi bi-person me-2"></i>My Profile
-                </Link>
-                <div className="dropdown-divider"></div>
-                <button
-                  className="dropdown-item text-danger"
-                  onClick={handleLogout}
-                >
-                  <i className="bi bi-box-arrow-right me-2"></i>Logout
-                </button>
-              </div>
+          <div
+            className="user-menu"
+            onClick={() => setShowUserMenu(!showUserMenu)}
+          >
+            <div className="user-avatar">
+              {cleanUsername(user?.username).charAt(0)}
             </div>
+            <div className="user-info">
+              <span className="user-name">{cleanUsername(user?.username)}</span>
+              <span className="user-role">{user?.role}</span>
+            </div>
+            <i
+              className="bi bi-chevron-down"
+              style={{ fontSize: "0.8rem", color: "var(--text-tertiary)" }}
+            ></i>
           </div>
+
+          {/* Dropdown Menu */}
+          {showUserMenu && (
+            <div
+              className="dropdown-menu show"
+              style={{
+                position: "absolute",
+                top: "60px",
+                right: "1.5rem",
+                minWidth: "200px",
+                background: "var(--card-bg)",
+                border: "1px solid var(--border-light)",
+                borderRadius: "var(--radius-lg)",
+                boxShadow: "var(--shadow-lg)",
+                padding: "0.5rem",
+                zIndex: 1000,
+              }}
+            >
+              <Link
+                to={`/profile/${user?.role}`}
+                className="dropdown-item"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  padding: "0.75rem 1rem",
+                  borderRadius: "var(--radius-md)",
+                  color: "var(--text-primary)",
+                  textDecoration: "none",
+                  transition: "all 0.2s",
+                }}
+                onClick={() => setShowUserMenu(false)}
+              >
+                <i className="bi bi-person"></i>
+                <span>My Profile</span>
+              </Link>
+              <div
+                className="dropdown-divider"
+                style={{
+                  height: "1px",
+                  background: "var(--border-light)",
+                  margin: "0.5rem 0",
+                }}
+              ></div>
+              <button
+                className="dropdown-item"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  padding: "0.75rem 1rem",
+                  borderRadius: "var(--radius-md)",
+                  color: "var(--danger)",
+                  background: "none",
+                  border: "none",
+                  width: "100%",
+                  textAlign: "left",
+                  cursor: "pointer",
+                  transition: "all 0.2s",
+                }}
+                onClick={handleLogout}
+              >
+                <i className="bi bi-box-arrow-right"></i>
+                <span>Logout</span>
+              </button>
+            </div>
+          )}
         </div>
-      </Container>
-    </BootstrapNavbar>
+      </div>
+    </nav>
   );
 };
 
