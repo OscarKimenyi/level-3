@@ -23,6 +23,14 @@ const Navbar = ({ toggleSidebar, sidebarOpen }) => {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  useEffect(() => {
+    // Log connection status for debugging
+    console.log(
+      "Socket connection status:",
+      isConnected ? "Connected" : "Disconnected",
+    );
+  }, [isConnected]);
+
   const handleLogout = () => {
     logout();
     navigate("/login");
@@ -60,16 +68,33 @@ const Navbar = ({ toggleSidebar, sidebarOpen }) => {
               className="navbar-action-btn"
               onClick={toggleTheme}
               aria-label="Toggle theme"
+              title={
+                theme === "light"
+                  ? "Switch to Dark Mode"
+                  : "Switch to Light Mode"
+              }
             >
               <i
                 className={`bi bi-${theme === "light" ? "moon-fill" : "sun-fill"}`}
               ></i>
             </button>
 
-            {/* Connection Status */}
-            <button className="navbar-action-btn">
+            {/* Connection Status - Green when connected */}
+            <button
+              className="navbar-action-btn"
+              title={
+                isConnected ? "Connected to server" : "Disconnected from server"
+              }
+            >
               <i
-                className={`bi bi-circle-fill ${isConnected ? "text-success" : "text-danger"}`}
+                className={`bi bi-circle-fill`}
+                style={{
+                  color: isConnected ? "#10b981" : "#ef4444",
+                  fontSize: "1.2rem",
+                  filter: isConnected
+                    ? "drop-shadow(0 0 4px rgba(16, 185, 129, 0.5))"
+                    : "none",
+                }}
               ></i>
             </button>
 
@@ -78,6 +103,7 @@ const Navbar = ({ toggleSidebar, sidebarOpen }) => {
               <button
                 className="navbar-action-btn"
                 onClick={() => setPanelOpen(!panelOpen)}
+                aria-label="Notifications"
               >
                 <i className="bi bi-bell-fill"></i>
                 {unreadCount > 0 && (
