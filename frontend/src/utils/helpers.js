@@ -1,28 +1,19 @@
 // Format date to readable string
 export const formatDate = (dateString) => {
-  if (!dateString) return "N/A";
-  const date = new Date(dateString);
-  return date.toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
+  if (!dateString) return "";
+  return new Date(dateString).toLocaleDateString();
 };
 
 // Format time to readable string
 export const formatTime = (dateString) => {
-  if (!dateString) return "N/A";
-  const date = new Date(dateString);
-  return date.toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  if (!dateString) return "";
+  const d = new Date(dateString);
+  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 };
 
 // Format date and time
 export const formatDateTime = (dateString) => {
   if (!dateString) return "N/A";
-  const date = new Date(dateString);
   return `${formatDate(dateString)} at ${formatTime(dateString)}`;
 };
 
@@ -57,7 +48,7 @@ export const isValidEmail = (email) => {
 
 // Validate phone number (basic)
 export const isValidPhone = (phone) => {
-  const phoneRegex = /^[\+]?[1-9][\d]{0,15}$/;
+  const phoneRegex = /^[+]?[1-9][\d]{0,15}$/; // Removed the unnecessary \ before +
   return phoneRegex.test(phone.replace(/\D/g, ""));
 };
 
@@ -100,5 +91,5 @@ export const formatFileSize = (bytes) => {
 
 // Generate random ID
 export const generateId = () => {
-  return Date.now().toString(36) + Math.random().toString(36).substr(2);
+  return Date.now().toString(36) + Math.random().toString(36).substring(2);
 };
