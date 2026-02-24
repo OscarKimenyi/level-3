@@ -1,171 +1,183 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
-  Card,
+  Container,
   Row,
   Col,
+  Card,
   Form,
   Button,
-  Badge,
   ListGroup,
+  Badge,
   Spinner,
-  InputGroup,
   Alert,
+  InputGroup,
 } from "react-bootstrap";
 import useAuth from "../context/useAuth";
 import useSocket from "../context/useSocket";
-import axios from "axios";
+import api from "../services/api";
+import { formatTime } from "../utils/helpers";
 
 const Chat = () => {
   const { user } = useAuth();
-  const { socket, isConnected } = useSocket();
+  const { isConnected, emit, on } = useSocket();
 
-  const [users, setUsers] = useState([]);
-  const [selectedUser, setSelectedUser] = useState(null);
+  const [contacts, setContacts] = useState([]);
+  const [selectedContact, setSelectedContact] = useState(null);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [typingTimeout, setTypingTimeout] = useState(null);
+  const [isTyping, setIsTyping] = useState(false);
+  const [contactTyping, setContactTyping] = useState(false);
 
   const messagesEndRef = useRef(null);
+  const fileInputRef = useRef(null);
+
+  const fetchContacts = useCallback(async () => {
+    try {
+      setLoading(true);
+
+      let contactsData = [];
+
+      if (user?.role === "student") {
+        const coursesRes = await api.get("/courses/my-courses");
+        const teachers = new Set();
+
+        for (const course of coursesRes.data.data || []) {
+          if (course.teacher?.userId) {
+            teachers.add(
+              JSON.stringify({
+                _id: course.teacher.userId,
+                name: `${course.teacher.firstName} ${course.teacher.lastName}`,
+                role: "teacher",
+                course: course.courseName,
+              }),
+            );
+          }
+        }
+        contactsData = Array.from(teachers).map((t) => JSON.parse(t));
+      } else if (user?.role === "teacher") {
+        const coursesRes = await api.get("/courses/my-courses");
+        const students = new Set();
+
+        for (const course of coursesRes.data.data || []) {
+          if (course.students) {
+            for (const student of course.students) {
+              if (student.userId) {
+                students.add(
+                  JSON.stringify({
+                    _id: student.userId,
+                    name: `${student.firstName} ${student.lastName}`,
+                    role: "student",
+                    course: course.courseName,
+                  }),
+                );
+              }
+            }
+          }
+        }
+        contactsData = Array.from(students).map((s) => JSON.parse(s));
+      } else if (user?.role === "admin") {
+        const [teachersRes, studentsRes] = await Promise.all([
+          api.get("/teachers?limit=50"),
+          api.get("/students?limit=50"),
+        ]);
+
+        contactsData = [
+          ...(teachersRes.data.data || []).map((t) => ({
+            _id: t.userId,
+            name: `${t.firstName} ${t.lastName}`,
+            role: "teacher",
+            department: t.department,
+          })),
+          ...(studentsRes.data.data || []).map((s) => ({
+            _id: s.userId,
+            name: `${s.firstName} ${s.lastName}`,
+            role: "student",
+            class: s.classGrade,
+          })),
+        ];
+      }
+
+      setContacts(contactsData);
+      if (contactsData.length > 0 && !selectedContact) {
+        setSelectedContact(contactsData[0]);
+      }
+      setError("");
+    } catch (err) {
+      console.error("Error fetching contacts:", err);
+      setError("Failed to load contacts");
+    } finally {
+      setLoading(false);
+    }
+  }, [user, selectedContact]);
 
   useEffect(() => {
-    fetchUsers();
+    fetchContacts();
+  }, [fetchContacts]);
 
-    if (socket) {
-      // Listen for incoming messages
-      socket.on("receive_message", handleIncomingMessage);
+  useEffect(() => {
+    if (!isConnected || !selectedContact) return;
 
-      return () => {
-        socket.off("receive_message", handleIncomingMessage);
-      };
-    }
-  }, [fetchUsers, handleIncomingMessage, socket]);
+    const handleReceiveMessage = (data) => {
+      if (data.senderId === selectedContact._id) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            _id: Date.now().toString(),
+            sender: data.senderId,
+            receiver: user?._id,
+            message: data.message,
+            timestamp: new Date(data.timestamp),
+            read: false,
+          },
+        ]);
+        scrollToBottom();
+      }
+    };
+
+    const handleUserTyping = (data) => {
+      if (data.userId === selectedContact._id) {
+        setContactTyping(data.isTyping);
+      }
+    };
+
+    const unsubscribeMessage = on("receive_message", handleReceiveMessage);
+    const unsubscribeTyping = on("user_typing", handleUserTyping);
+
+    return () => {
+      unsubscribeMessage();
+      unsubscribeTyping();
+    };
+  }, [isConnected, selectedContact, user?._id, on]);
 
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const fetchUsers = async () => {
-    try {
-      setLoading(true);
-
-      // Fetch teachers and students
-      const [teachersRes, studentsRes] = await Promise.all([
-        axios.get("/teachers?limit=50"),
-        axios.get("/students?limit=50"),
-      ]);
-
-      const allUsers = [
-        ...teachersRes.data.data.map((t) => ({
-          _id: t.userId?._id || t._id,
-          name: `${t.firstName} ${t.lastName}`,
-          role: "teacher",
-          status: "online",
-        })),
-        ...studentsRes.data.data.map((s) => ({
-          _id: s.userId?._id || s._id,
-          name: `${s.firstName} ${s.lastName}`,
-          role: "student",
-          status: "online",
-        })),
-      ].filter((u) => u._id !== user?._id); // Remove current user
-
-      setUsers(allUsers);
-
-      // Select first user by default
-      if (allUsers.length > 0 && !selectedUser) {
-        setSelectedUser(allUsers[0]);
-        fetchMessages(allUsers[0]._id);
-      }
-    } catch (error) {
-      console.error("Error fetching users:", error);
-      setError("Failed to load users");
-    } finally {
-      setLoading(false);
-    }
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  const fetchMessages = async (userId) => {
-    try {
-      // In a real app, you'd fetch from your messages API
-      // For now, we'll use mock data
-      const mockMessages = [
-        {
-          _id: "1",
-          sender: userId,
-          receiver: user?._id,
-          message: "Hello! How are you doing?",
-          timestamp: new Date(Date.now() - 3600000),
-          read: true,
-        },
-        {
-          _id: "2",
-          sender: user?._id,
-          receiver: userId,
-          message: "I'm doing great! How about you?",
-          timestamp: new Date(Date.now() - 1800000),
-          read: true,
-        },
-        {
-          _id: "3",
-          sender: userId,
-          receiver: user?._id,
-          message: "I need help with the math assignment.",
-          timestamp: new Date(Date.now() - 600000),
-          read: true,
-        },
-        {
-          _id: "4",
-          sender: user?._id,
-          receiver: userId,
-          message: "Sure! Which problem are you stuck on?",
-          timestamp: new Date(Date.now() - 300000),
-          read: false,
-        },
-      ];
+  const handleSendMessage = (e) => {
+    e.preventDefault();
 
-      setMessages(mockMessages);
-    } catch (error) {
-      console.error("Error fetching messages:", error);
-    }
-  };
-
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const handleIncomingMessage = (data) => {
-    if (data.senderId === selectedUser?._id) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          _id: Date.now().toString(),
-          sender: data.senderId,
-          receiver: user?._id,
-          message: data.message,
-          timestamp: new Date(data.timestamp),
-          read: false,
-        },
-      ]);
-    }
-  };
-
-  const handleSendMessage = () => {
-    if (!newMessage.trim() || !selectedUser || !socket) return;
+    if (!newMessage.trim() || !selectedContact || !emit) return;
 
     const messageData = {
-      receiverId: selectedUser._id,
+      receiverId: selectedContact._id,
       message: newMessage.trim(),
     };
 
-    // Send via WebSocket
-    socket.emit("send_message", messageData);
+    emit("send_message", messageData);
 
-    // Add to local messages
     setMessages((prev) => [
       ...prev,
       {
         _id: Date.now().toString(),
         sender: user?._id,
-        receiver: selectedUser._id,
+        receiver: selectedContact._id,
         message: newMessage.trim(),
         timestamp: new Date(),
         read: false,
@@ -173,31 +185,101 @@ const Chat = () => {
     ]);
 
     setNewMessage("");
+
+    if (emit) {
+      emit("typing", { receiverId: selectedContact._id, isTyping: false });
+    }
   };
 
-  const handleUserSelect = (user) => {
-    setSelectedUser(user);
-    fetchMessages(user._id);
+  const handleTyping = () => {
+    if (!selectedContact || !emit) return;
+
+    if (!isTyping) {
+      setIsTyping(true);
+      emit("typing", { receiverId: selectedContact._id, isTyping: true });
+    }
+
+    if (typingTimeout) {
+      clearTimeout(typingTimeout);
+    }
+
+    setTypingTimeout(
+      setTimeout(() => {
+        setIsTyping(false);
+        if (emit) {
+          emit("typing", { receiverId: selectedContact._id, isTyping: false });
+        }
+      }, 1000),
+    );
   };
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  const handleFileUpload = () => {
+    fileInputRef.current?.click();
   };
 
-  const formatTime = (date) => {
-    return new Date(date).toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+  const handleFileChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const fileMessage = `📎 File: ${file.name}`;
+
+    if (emit) {
+      emit("send_message", {
+        receiverId: selectedContact._id,
+        message: fileMessage,
+      });
+    }
+
+    setMessages((prev) => [
+      ...prev,
+      {
+        _id: Date.now().toString(),
+        sender: user?._id,
+        receiver: selectedContact._id,
+        message: fileMessage,
+        timestamp: new Date(),
+        read: false,
+      },
+    ]);
+
+    e.target.value = "";
   };
+
+  const loadChatHistory = useCallback(async () => {
+    if (!selectedContact) return;
+
+    try {
+      const response = await api.get(
+        `/messages/conversation/${selectedContact._id}`,
+      );
+      setMessages(response.data.data || []);
+    } catch (err) {
+      console.error("Error loading chat history:", err);
+    }
+  }, [selectedContact]);
+
+  useEffect(() => {
+    if (selectedContact) {
+      loadChatHistory();
+    }
+  }, [selectedContact, loadChatHistory]);
+
+  if (loading) {
+    return (
+      <div className="text-center py-5">
+        <Spinner animation="border" variant="primary" />
+        <p className="mt-3">Loading chat...</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="container-fluid py-3">
+    <Container fluid className="py-3">
       <h2 className="mb-4">
-        <i className="bi bi-chat-left-text me-2"></i>
-        Chat
+        <i className="bi bi-chat-dots me-2"></i>
+        Messages
         <Badge bg={isConnected ? "success" : "danger"} className="ms-2">
-          {isConnected ? "Live" : "Offline"}
+          {isConnected ? "Connected" : "Disconnected"}
         </Badge>
       </h2>
 
@@ -213,82 +295,90 @@ const Chat = () => {
             <Card.Header className="bg-primary text-white">
               <h5 className="mb-0">Contacts</h5>
             </Card.Header>
-            <Card.Body className="p-0">
-              {loading ? (
-                <div className="text-center py-5">
-                  <Spinner animation="border" variant="primary" />
-                  <p className="mt-3">Loading contacts...</p>
-                </div>
-              ) : (
-                <ListGroup variant="flush">
-                  {users.map((contact) => (
-                    <ListGroup.Item
-                      key={contact._id}
-                      action
-                      active={selectedUser?._id === contact._id}
-                      onClick={() => handleUserSelect(contact)}
-                      className="d-flex justify-content-between align-items-center"
-                    >
+            <ListGroup
+              variant="flush"
+              style={{ maxHeight: "500px", overflowY: "auto" }}
+            >
+              {contacts.length > 0 ? (
+                contacts.map((contact) => (
+                  <ListGroup.Item
+                    key={contact._id}
+                    action
+                    active={selectedContact?._id === contact._id}
+                    onClick={() => setSelectedContact(contact)}
+                    className="d-flex justify-content-between align-items-center"
+                  >
+                    <div className="d-flex align-items-center">
+                      <div
+                        className="bg-info text-white rounded-circle d-flex align-items-center justify-content-center me-2"
+                        style={{
+                          width: "40px",
+                          height: "40px",
+                          fontSize: "1.2rem",
+                        }}
+                      >
+                        {contact.name?.charAt(0)}
+                      </div>
                       <div>
                         <strong>{contact.name}</strong>
-                        <div className="text-muted small">
+                        <br />
+                        <small className="text-muted">
                           <Badge
                             bg={contact.role === "teacher" ? "info" : "success"}
                             className="me-1"
                           >
                             {contact.role}
                           </Badge>
-                          <Badge
-                            bg={
-                              contact.status === "online"
-                                ? "success"
-                                : "secondary"
-                            }
-                          >
-                            {contact.status}
-                          </Badge>
-                        </div>
+                          {contact.course ||
+                            contact.department ||
+                            contact.class}
+                        </small>
                       </div>
-                      {contact.unreadCount > 0 && (
-                        <Badge pill bg="danger">
-                          {contact.unreadCount}
-                        </Badge>
-                      )}
-                    </ListGroup.Item>
-                  ))}
-                </ListGroup>
+                    </div>
+                  </ListGroup.Item>
+                ))
+              ) : (
+                <ListGroup.Item className="text-center text-muted py-4">
+                  No contacts available
+                </ListGroup.Item>
               )}
-            </Card.Body>
+            </ListGroup>
           </Card>
         </Col>
 
         <Col md={8}>
           <Card className="shadow-sm h-100">
             <Card.Header className="bg-light">
-              {selectedUser ? (
-                <div className="d-flex justify-content-between align-items-center">
+              {selectedContact ? (
+                <div className="d-flex align-items-center">
+                  <div
+                    className="bg-info text-white rounded-circle d-flex align-items-center justify-content-center me-2"
+                    style={{
+                      width: "40px",
+                      height: "40px",
+                      fontSize: "1.2rem",
+                    }}
+                  >
+                    {selectedContact.name?.charAt(0)}
+                  </div>
                   <div>
-                    <h5 className="mb-0">{selectedUser.name}</h5>
+                    <h5 className="mb-0">{selectedContact.name}</h5>
                     <small className="text-muted">
                       <Badge
                         bg={
-                          selectedUser.role === "teacher" ? "info" : "success"
+                          selectedContact.role === "teacher"
+                            ? "info"
+                            : "success"
                         }
                       >
-                        {selectedUser.role}
+                        {selectedContact.role}
                       </Badge>
-                      <span className="ms-2">
-                        {selectedUser.status === "online"
-                          ? "Online"
-                          : "Offline"}
-                      </span>
+                      {contactTyping && (
+                        <span className="text-success ms-2">
+                          <i className="bi bi-chat-dots me-1"></i>typing...
+                        </span>
+                      )}
                     </small>
-                  </div>
-                  <div>
-                    <Badge bg="light" text="dark">
-                      <i className="bi bi-circle-fill text-success me-1"></i>
-                      Active now
-                    </Badge>
                   </div>
                 </div>
               ) : (
@@ -303,27 +393,34 @@ const Chat = () => {
                 backgroundColor: "#f8f9fa",
               }}
             >
-              {selectedUser ? (
+              {selectedContact ? (
                 <>
-                  {messages.map((msg, index) => (
+                  {messages.map((msg) => (
                     <div
-                      key={index}
-                      className={`d-flex mb-3 ${msg.sender === user?._id ? "justify-content-end" : "justify-content-start"}`}
+                      key={msg._id}
+                      className={`d-flex mb-3 ${
+                        msg.sender === user?._id
+                          ? "justify-content-end"
+                          : "justify-content-start"
+                      }`}
                     >
                       <div
-                        className={`p-3 rounded ${msg.sender === user?._id ? "bg-primary text-white" : "bg-white"}`}
+                        className={`p-3 rounded ${
+                          msg.sender === user?._id
+                            ? "bg-primary text-white"
+                            : "bg-white"
+                        }`}
                         style={{ maxWidth: "70%" }}
                       >
-                        <div>{msg.message}</div>
+                        {msg.message}
                         <div
-                          className={`text-end small ${msg.sender === user?._id ? "text-white-50" : "text-muted"}`}
+                          className={`text-end small ${
+                            msg.sender === user?._id
+                              ? "text-white-50"
+                              : "text-muted"
+                          }`}
                         >
                           {formatTime(msg.timestamp)}
-                          {msg.sender === user?._id && (
-                            <i
-                              className={`bi bi-check2-all ms-1 ${msg.read ? "text-info" : ""}`}
-                            ></i>
-                          )}
                         </div>
                       </div>
                     </div>
@@ -338,57 +435,54 @@ const Chat = () => {
               )}
             </Card.Body>
 
-            <Card.Footer>
-              {selectedUser && (
-                <Form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    handleSendMessage();
-                  }}
-                >
+            {selectedContact && (
+              <Card.Footer>
+                <Form onSubmit={handleSendMessage}>
                   <InputGroup>
                     <Form.Control
                       type="text"
-                      placeholder="Type your message..."
+                      placeholder="Type a message..."
                       value={newMessage}
-                      onChange={(e) => setNewMessage(e.target.value)}
-                      onKeyPress={(e) => {
-                        if (e.key === "Enter" && !e.shiftKey) {
-                          e.preventDefault();
-                          handleSendMessage();
-                        }
+                      onChange={(e) => {
+                        setNewMessage(e.target.value);
+                        handleTyping();
                       }}
                       disabled={!isConnected}
                     />
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleFileChange}
+                      style={{ display: "none" }}
+                    />
                     <Button
+                      variant="outline-secondary"
+                      onClick={handleFileUpload}
+                      disabled={!isConnected}
+                    >
+                      <i className="bi bi-paperclip"></i>
+                    </Button>
+                    <Button
+                      type="submit"
                       variant="primary"
-                      onClick={handleSendMessage}
                       disabled={!newMessage.trim() || !isConnected}
                     >
                       <i className="bi bi-send"></i>
                     </Button>
                   </InputGroup>
-                  <div className="text-muted small mt-2">
-                    {isConnected ? (
-                      <span className="text-success">
-                        <i className="bi bi-circle-fill me-1"></i>
-                        Connected
-                      </span>
-                    ) : (
-                      <span className="text-danger">
-                        <i className="bi bi-circle-fill me-1"></i>
-                        Disconnected
-                      </span>
-                    )}
-                    <span className="ms-3">Press Enter to send</span>
-                  </div>
                 </Form>
-              )}
-            </Card.Footer>
+                <div className="text-muted small mt-2">
+                  <i
+                    className={`bi bi-circle-fill me-1 ${isConnected ? "text-success" : "text-danger"}`}
+                  ></i>
+                  {isConnected ? "Connected" : "Disconnected"}
+                </div>
+              </Card.Footer>
+            )}
           </Card>
         </Col>
       </Row>
-    </div>
+    </Container>
   );
 };
 
