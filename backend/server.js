@@ -32,8 +32,10 @@ connectDB();
 app.use(helmet());
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL,
+    origin: process.env.FRONTEND_URL || "http://localhost:5173",
     credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   }),
 );
 app.use(express.json());
@@ -69,6 +71,9 @@ io.on("connection", (socket) => {
 
       // Join personal room for direct messages
       socket.join(decoded.userId.toString());
+      console.log(
+        `👤 User ${decoded.userId} joined room: ${decoded.userId.toString()}`,
+      );
 
       // Join role-based room for broadcasts
       socket.join(decoded.role);
@@ -81,7 +86,7 @@ io.on("connection", (socket) => {
       );
 
       // Acknowledge authentication
-      socket.emit("authenticated", { success: true });
+      socket.emit("authenticated", { success: true, userId: decoded.userId });
     } catch (error) {
       console.log("❌ Socket authentication failed:", error.message);
       socket.emit("authenticated", { success: false, error: error.message });
