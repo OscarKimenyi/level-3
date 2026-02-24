@@ -13,7 +13,7 @@ import {
   Alert,
   ListGroup,
 } from "react-bootstrap";
-//import { useNavigate } from "react-router-dom";
+// import { useNavigate } from "react-router-dom";
 import useAuth from "../context/useAuth";
 import api from "../services/api";
 import {
@@ -46,7 +46,8 @@ ChartJS.register(
 
 const Dashboard = () => {
   const { user } = useAuth();
-  //const navigate = useNavigate();
+  // const navigate = useNavigate();
+
   const [stats, setStats] = useState(null);
   const [recentActivity, setRecentActivity] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -218,7 +219,6 @@ const Dashboard = () => {
     fetchTeachers();
   }, [fetchDashboardData, fetchTeachers]);
 
-  // Handle Add Student
   const handleAddStudent = async () => {
     try {
       setSubmitting(true);
@@ -271,11 +271,9 @@ const Dashboard = () => {
       setShowStudentModal(false);
       resetStudentForm();
       fetchDashboardData();
-
       setTimeout(() => setSuccess(""), 3000);
     } catch (err) {
       console.error("Error adding student:", err);
-
       if (err.response?.data?.message) {
         setError(err.response.data.message);
       } else {
@@ -286,7 +284,6 @@ const Dashboard = () => {
     }
   };
 
-  // Handle Create Course
   const handleCreateCourse = async () => {
     try {
       setSubmitting(true);
@@ -308,7 +305,6 @@ const Dashboard = () => {
       setShowCourseModal(false);
       resetCourseForm();
       fetchDashboardData();
-
       setTimeout(() => setSuccess(""), 3000);
     } catch (err) {
       console.error("Error creating course:", err);
@@ -318,7 +314,6 @@ const Dashboard = () => {
     }
   };
 
-  // Handle Send Notification
   const handleSendNotification = async () => {
     try {
       setSubmitting(true);
@@ -335,7 +330,6 @@ const Dashboard = () => {
       setSuccess("Notification sent successfully!");
       setShowNotificationModal(false);
       resetNotificationForm();
-
       setTimeout(() => setSuccess(""), 3000);
     } catch (err) {
       console.error("Error sending notification:", err);
@@ -345,7 +339,6 @@ const Dashboard = () => {
     }
   };
 
-  // Handle Generate Report
   const handleGenerateReport = () => {
     const reportData = {
       title: "Student Management Report",
@@ -357,7 +350,6 @@ const Dashboard = () => {
     };
 
     const csv = convertToCSV(reportData);
-
     const blob = new Blob([csv], { type: "text/csv" });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -511,72 +503,162 @@ const Dashboard = () => {
           </Alert>
         )}
 
-        <Row className="mb-4">
-          <Col md={3}>
-            <Card className="text-center shadow-sm stats-card">
-              <Card.Body>
-                <Card.Title>
-                  <i className="bi bi-people fs-1 text-primary"></i>
-                </Card.Title>
-                <Card.Text className="fs-4 fw-bold">
-                  {stats?.totalStudents || 0}
-                </Card.Text>
-                <Card.Subtitle className="text-muted">
-                  Total Students
-                </Card.Subtitle>
+        <Row className="g-4 mb-4">
+          <Col lg={3} md={6}>
+            <Card
+              className="stats-card h-100 border-0"
+              style={{
+                background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+              }}
+            >
+              <Card.Body className="p-4">
+                <div className="d-flex justify-content-between align-items-start">
+                  <div>
+                    <Card.Subtitle
+                      className="text-white-50 mb-2"
+                      style={{ fontSize: "0.85rem", letterSpacing: "0.5px" }}
+                    >
+                      TOTAL STUDENTS
+                    </Card.Subtitle>
+                    <Card.Text className="display-4 fw-bold text-white mb-0">
+                      {stats?.totalStudents || 0}
+                    </Card.Text>
+                  </div>
+                  <div className="stats-icon">
+                    <i className="bi bi-people-fill fs-1 text-white-50"></i>
+                  </div>
+                </div>
+                <div className="mt-3 d-flex align-items-center text-white-50 small">
+                  <i className="bi bi-arrow-up-short me-1 text-success"></i>
+                  <span className="text-white me-1">12%</span> increase from
+                  last month
+                </div>
               </Card.Body>
             </Card>
           </Col>
-          <Col md={3}>
-            <Card className="text-center shadow-sm stats-card">
-              <Card.Body>
-                <Card.Title>
-                  <i className="bi bi-person-badge fs-1 text-success"></i>
-                </Card.Title>
-                <Card.Text className="fs-4 fw-bold">
-                  {stats?.totalTeachers || 0}
-                </Card.Text>
-                <Card.Subtitle className="text-muted">
-                  Total Teachers
-                </Card.Subtitle>
+
+          <Col lg={3} md={6}>
+            <Card
+              className="stats-card h-100 border-0"
+              style={{
+                background: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
+              }}
+            >
+              <Card.Body className="p-4">
+                <div className="d-flex justify-content-between align-items-start">
+                  <div>
+                    <Card.Subtitle
+                      className="text-white-50 mb-2"
+                      style={{ fontSize: "0.85rem", letterSpacing: "0.5px" }}
+                    >
+                      TOTAL TEACHERS
+                    </Card.Subtitle>
+                    <Card.Text className="display-4 fw-bold text-white mb-0">
+                      {stats?.totalTeachers || 0}
+                    </Card.Text>
+                  </div>
+                  <div className="stats-icon">
+                    <i className="bi bi-person-badge-fill fs-1 text-white-50"></i>
+                  </div>
+                </div>
+                <div className="mt-3 d-flex align-items-center text-white-50 small">
+                  <i className="bi bi-arrow-up-short me-1 text-success"></i>
+                  <span className="text-white me-1">8%</span> increase from last
+                  month
+                </div>
               </Card.Body>
             </Card>
           </Col>
-          <Col md={3}>
-            <Card className="text-center shadow-sm stats-card">
-              <Card.Body>
-                <Card.Title>
-                  <i className="bi bi-book fs-1 text-warning"></i>
-                </Card.Title>
-                <Card.Text className="fs-4 fw-bold">
-                  {stats?.totalCourses || 0}
-                </Card.Text>
-                <Card.Subtitle className="text-muted">
-                  Total Courses
-                </Card.Subtitle>
+
+          <Col lg={3} md={6}>
+            <Card
+              className="stats-card h-100 border-0"
+              style={{
+                background: "linear-gradient(135deg, #5f2c82 0%, #49a09d 100%)",
+              }}
+            >
+              <Card.Body className="p-4">
+                <div className="d-flex justify-content-between align-items-start">
+                  <div>
+                    <Card.Subtitle
+                      className="text-white-50 mb-2"
+                      style={{ fontSize: "0.85rem", letterSpacing: "0.5px" }}
+                    >
+                      TOTAL COURSES
+                    </Card.Subtitle>
+                    <Card.Text className="display-4 fw-bold text-white mb-0">
+                      {stats?.totalCourses || 0}
+                    </Card.Text>
+                  </div>
+                  <div className="stats-icon">
+                    <i className="bi bi-book-fill fs-1 text-white-50"></i>
+                  </div>
+                </div>
+                <div className="mt-3 d-flex align-items-center text-white-50 small">
+                  <i className="bi bi-arrow-up-short me-1 text-success"></i>
+                  <span className="text-white me-1">5%</span> increase from last
+                  month
+                </div>
               </Card.Body>
             </Card>
           </Col>
-          <Col md={3}>
-            <Card className="text-center shadow-sm stats-card">
-              <Card.Body>
-                <Card.Title>
-                  <i className="bi bi-calendar-check fs-1 text-info"></i>
-                </Card.Title>
-                <Card.Text className="fs-4 fw-bold">95%</Card.Text>
-                <Card.Subtitle className="text-muted">
-                  Attendance Rate
-                </Card.Subtitle>
+
+          <Col lg={3} md={6}>
+            <Card
+              className="stats-card h-100 border-0"
+              style={{
+                background: "linear-gradient(135deg, #ff9a9e 0%, #fad0c4 100%)",
+              }}
+            >
+              <Card.Body className="p-4">
+                <div className="d-flex justify-content-between align-items-start">
+                  <div>
+                    <Card.Subtitle
+                      className="text-white-50 mb-2"
+                      style={{ fontSize: "0.85rem", letterSpacing: "0.5px" }}
+                    >
+                      ATTENDANCE RATE
+                    </Card.Subtitle>
+                    <Card.Text className="display-4 fw-bold text-white mb-0">
+                      95%
+                    </Card.Text>
+                  </div>
+                  <div className="stats-icon">
+                    <i className="bi bi-calendar-check-fill fs-1 text-white-50"></i>
+                  </div>
+                </div>
+                <div className="mt-3 d-flex align-items-center text-white-50 small">
+                  <i className="bi bi-arrow-down-short me-1 text-danger"></i>
+                  <span className="text-white me-1">2%</span> decrease from last
+                  month
+                </div>
               </Card.Body>
             </Card>
           </Col>
         </Row>
 
-        <Row className="mb-4">
+        <Row className="g-4 mb-4">
           <Col md={6}>
-            <Card className="shadow-sm chart-card">
-              <Card.Body>
-                <Card.Title>Student Growth</Card.Title>
+            <Card className="shadow-sm border-0">
+              <Card.Body className="p-4">
+                <Card.Title className="d-flex align-items-center mb-4">
+                  <div
+                    className="title-icon me-2"
+                    style={{
+                      width: "35px",
+                      height: "35px",
+                      background: "rgba(102, 126, 234, 0.1)",
+                      borderRadius: "8px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "#667eea",
+                    }}
+                  >
+                    <i className="bi bi-graph-up"></i>
+                  </div>
+                  <span style={{ fontWeight: "600" }}>Student Growth</span>
+                </Card.Title>
                 <div style={{ height: "300px" }}>
                   <Bar
                     key={`bar-${JSON.stringify(barData)}`}
@@ -584,16 +666,39 @@ const Dashboard = () => {
                     options={{
                       responsive: true,
                       maintainAspectRatio: false,
+                      plugins: {
+                        legend: {
+                          display: false,
+                        },
+                      },
                     }}
                   />
                 </div>
               </Card.Body>
             </Card>
           </Col>
+
           <Col md={6}>
-            <Card className="shadow-sm chart-card">
-              <Card.Body>
-                <Card.Title>Student Status</Card.Title>
+            <Card className="shadow-sm border-0">
+              <Card.Body className="p-4">
+                <Card.Title className="d-flex align-items-center mb-4">
+                  <div
+                    className="title-icon me-2"
+                    style={{
+                      width: "35px",
+                      height: "35px",
+                      background: "rgba(102, 126, 234, 0.1)",
+                      borderRadius: "8px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "#667eea",
+                    }}
+                  >
+                    <i className="bi bi-pie-chart"></i>
+                  </div>
+                  <span style={{ fontWeight: "600" }}>Student Status</span>
+                </Card.Title>
                 <div style={{ height: "300px" }}>
                   <Pie
                     key={`pie-${JSON.stringify(pieData)}`}
@@ -601,6 +706,11 @@ const Dashboard = () => {
                     options={{
                       responsive: true,
                       maintainAspectRatio: false,
+                      plugins: {
+                        legend: {
+                          position: "bottom",
+                        },
+                      },
                     }}
                   />
                 </div>
@@ -609,12 +719,29 @@ const Dashboard = () => {
           </Col>
         </Row>
 
-        <Row>
+        <Row className="g-4">
           <Col md={8}>
-            <Card className="shadow-sm activity-card">
-              <Card.Body>
-                <Card.Title>Recent Activity</Card.Title>
-                <Table hover responsive>
+            <Card className="shadow-sm border-0">
+              <Card.Body className="p-4">
+                <Card.Title className="d-flex align-items-center mb-4">
+                  <div
+                    className="title-icon me-2"
+                    style={{
+                      width: "35px",
+                      height: "35px",
+                      background: "rgba(102, 126, 234, 0.1)",
+                      borderRadius: "8px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "#667eea",
+                    }}
+                  >
+                    <i className="bi bi-activity"></i>
+                  </div>
+                  <span style={{ fontWeight: "600" }}>Recent Activity</span>
+                </Card.Title>
+                <Table hover responsive className="align-middle">
                   <thead>
                     <tr>
                       <th>User</th>
@@ -625,10 +752,33 @@ const Dashboard = () => {
                   <tbody>
                     {recentActivity.map((activity) => (
                       <tr key={activity.id}>
-                        <td>{activity.user}</td>
+                        <td>
+                          <div className="d-flex align-items-center">
+                            <div
+                              className="user-avatar-sm me-2"
+                              style={{
+                                width: "32px",
+                                height: "32px",
+                                background: "#667eea",
+                                borderRadius: "8px",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                color: "white",
+                                fontSize: "0.8rem",
+                                fontWeight: "600",
+                              }}
+                            >
+                              {activity.user.charAt(0)}
+                            </div>
+                            {activity.user}
+                          </div>
+                        </td>
                         <td>{activity.action}</td>
                         <td>
-                          <Badge bg="secondary">{activity.time}</Badge>
+                          <Badge bg="light" text="dark" className="px-3 py-2">
+                            {activity.time}
+                          </Badge>
                         </td>
                       </tr>
                     ))}
@@ -637,42 +787,159 @@ const Dashboard = () => {
               </Card.Body>
             </Card>
           </Col>
+
           <Col md={4}>
-            <Card className="shadow-sm quick-actions-card">
-              <Card.Body>
-                <Card.Title>Quick Actions</Card.Title>
-                <div className="d-grid gap-2">
+            <Card className="shadow-sm border-0 h-100">
+              <Card.Body className="p-4">
+                <Card.Title className="d-flex align-items-center mb-4">
+                  <div
+                    className="title-icon me-2"
+                    style={{
+                      width: "35px",
+                      height: "35px",
+                      background: "rgba(102, 126, 234, 0.1)",
+                      borderRadius: "8px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "#667eea",
+                    }}
+                  >
+                    <i className="bi bi-lightning-charge"></i>
+                  </div>
+                  <span style={{ fontWeight: "600" }}>Quick Actions</span>
+                </Card.Title>
+                <div className="d-grid gap-3">
                   <Button
                     variant="outline-primary"
-                    className="text-start d-flex align-items-center"
+                    className="d-flex align-items-center justify-content-start p-3 border-0"
+                    style={{
+                      background: "rgba(102, 126, 234, 0.05)",
+                      borderRadius: "10px",
+                    }}
                     onClick={() => setShowStudentModal(true)}
                   >
-                    <i className="bi bi-plus-circle me-2"></i>
-                    Add New Student
+                    <div
+                      className="action-icon me-3"
+                      style={{
+                        width: "40px",
+                        height: "40px",
+                        background:
+                          "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                        borderRadius: "10px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "white",
+                      }}
+                    >
+                      <i className="bi bi-person-plus"></i>
+                    </div>
+                    <div className="flex-grow-1 text-start">
+                      <div style={{ fontWeight: "600" }}>Add New Student</div>
+                      <small className="text-muted">
+                        Create a new student account
+                      </small>
+                    </div>
+                    <i className="bi bi-chevron-right text-muted"></i>
                   </Button>
+
                   <Button
                     variant="outline-success"
-                    className="text-start d-flex align-items-center"
+                    className="d-flex align-items-center justify-content-start p-3 border-0"
+                    style={{
+                      background: "rgba(16, 185, 129, 0.05)",
+                      borderRadius: "10px",
+                    }}
                     onClick={() => setShowCourseModal(true)}
                   >
-                    <i className="bi bi-calendar-plus me-2"></i>
-                    Create Course
+                    <div
+                      className="action-icon me-3"
+                      style={{
+                        width: "40px",
+                        height: "40px",
+                        background:
+                          "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+                        borderRadius: "10px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "white",
+                      }}
+                    >
+                      <i className="bi bi-calendar-plus"></i>
+                    </div>
+                    <div className="flex-grow-1 text-start">
+                      <div style={{ fontWeight: "600" }}>Create Course</div>
+                      <small className="text-muted">Add a new course</small>
+                    </div>
+                    <i className="bi bi-chevron-right text-muted"></i>
                   </Button>
+
                   <Button
                     variant="outline-warning"
-                    className="text-start d-flex align-items-center"
+                    className="d-flex align-items-center justify-content-start p-3 border-0"
+                    style={{
+                      background: "rgba(245, 158, 11, 0.05)",
+                      borderRadius: "10px",
+                    }}
                     onClick={() => setShowReportModal(true)}
                   >
-                    <i className="bi bi-file-earmark-text me-2"></i>
-                    Generate Report
+                    <div
+                      className="action-icon me-3"
+                      style={{
+                        width: "40px",
+                        height: "40px",
+                        background:
+                          "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
+                        borderRadius: "10px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "white",
+                      }}
+                    >
+                      <i className="bi bi-file-earmark-text"></i>
+                    </div>
+                    <div className="flex-grow-1 text-start">
+                      <div style={{ fontWeight: "600" }}>Generate Report</div>
+                      <small className="text-muted">
+                        Download analytics report
+                      </small>
+                    </div>
+                    <i className="bi bi-chevron-right text-muted"></i>
                   </Button>
+
                   <Button
                     variant="outline-info"
-                    className="text-start d-flex align-items-center"
+                    className="d-flex align-items-center justify-content-start p-3 border-0"
+                    style={{
+                      background: "rgba(59, 130, 246, 0.05)",
+                      borderRadius: "10px",
+                    }}
                     onClick={() => setShowNotificationModal(true)}
                   >
-                    <i className="bi bi-envelope me-2"></i>
-                    Send Notification
+                    <div
+                      className="action-icon me-3"
+                      style={{
+                        width: "40px",
+                        height: "40px",
+                        background:
+                          "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",
+                        borderRadius: "10px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "white",
+                      }}
+                    >
+                      <i className="bi bi-envelope"></i>
+                    </div>
+                    <div className="flex-grow-1 text-start">
+                      <div style={{ fontWeight: "600" }}>Send Notification</div>
+                      <small className="text-muted">Broadcast to users</small>
+                    </div>
+                    <i className="bi bi-chevron-right text-muted"></i>
                   </Button>
                 </div>
               </Card.Body>
@@ -699,64 +966,131 @@ const Dashboard = () => {
 
     return (
       <>
-        <Row className="mb-4">
-          <Col md={3}>
-            <Card className="text-center shadow-sm">
-              <Card.Body>
-                <Card.Title>
-                  <i className="bi bi-journal-text fs-1 text-primary"></i>
-                </Card.Title>
-                <Card.Text className="fs-4 fw-bold">
-                  {teacherData.stats.activeCourses}
-                </Card.Text>
-                <Card.Subtitle className="text-muted">
-                  Active Courses
-                </Card.Subtitle>
+        <Row className="g-4 mb-4">
+          <Col lg={3} md={6}>
+            <Card
+              className="stats-card h-100 border-0"
+              style={{
+                background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+              }}
+            >
+              <Card.Body className="p-4">
+                <div className="d-flex justify-content-between align-items-start">
+                  <div>
+                    <Card.Subtitle
+                      className="text-white-50 mb-2"
+                      style={{ fontSize: "0.85rem", letterSpacing: "0.5px" }}
+                    >
+                      ACTIVE COURSES
+                    </Card.Subtitle>
+                    <Card.Text className="display-4 fw-bold text-white mb-0">
+                      {teacherData.stats.activeCourses}
+                    </Card.Text>
+                  </div>
+                  <div className="stats-icon">
+                    <i className="bi bi-journal-bookmark-fill fs-1 text-white-50"></i>
+                  </div>
+                </div>
+                <div className="mt-3 text-white-50 small">
+                  <i className="bi bi-book me-1"></i> Teaching{" "}
+                  {teacherData.stats.activeCourses} courses
+                </div>
               </Card.Body>
             </Card>
           </Col>
-          <Col md={3}>
-            <Card className="text-center shadow-sm">
-              <Card.Body>
-                <Card.Title>
-                  <i className="bi bi-clock fs-1 text-warning"></i>
-                </Card.Title>
-                <Card.Text className="fs-4 fw-bold">
-                  {teacherData.stats.pendingGrading}
-                </Card.Text>
-                <Card.Subtitle className="text-muted">
-                  Pending Grading
-                </Card.Subtitle>
+
+          <Col lg={3} md={6}>
+            <Card
+              className="stats-card h-100 border-0"
+              style={{
+                background: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
+              }}
+            >
+              <Card.Body className="p-4">
+                <div className="d-flex justify-content-between align-items-start">
+                  <div>
+                    <Card.Subtitle
+                      className="text-white-50 mb-2"
+                      style={{ fontSize: "0.85rem", letterSpacing: "0.5px" }}
+                    >
+                      PENDING GRADING
+                    </Card.Subtitle>
+                    <Card.Text className="display-4 fw-bold text-white mb-0">
+                      {teacherData.stats.pendingGrading}
+                    </Card.Text>
+                  </div>
+                  <div className="stats-icon">
+                    <i className="bi bi-clock-history fs-1 text-white-50"></i>
+                  </div>
+                </div>
+                <div className="mt-3 text-white-50 small">
+                  <i className="bi bi-exclamation-triangle me-1"></i>{" "}
+                  {teacherData.stats.pendingGrading} assignments to grade
+                </div>
               </Card.Body>
             </Card>
           </Col>
-          <Col md={3}>
-            <Card className="text-center shadow-sm">
-              <Card.Body>
-                <Card.Title>
-                  <i className="bi bi-chat-left-text fs-1 text-success"></i>
-                </Card.Title>
-                <Card.Text className="fs-4 fw-bold">
-                  {teacherData.stats.unreadMessages}
-                </Card.Text>
-                <Card.Subtitle className="text-muted">
-                  Unread Messages
-                </Card.Subtitle>
+
+          <Col lg={3} md={6}>
+            <Card
+              className="stats-card h-100 border-0"
+              style={{
+                background: "linear-gradient(135deg, #5f2c82 0%, #49a09d 100%)",
+              }}
+            >
+              <Card.Body className="p-4">
+                <div className="d-flex justify-content-between align-items-start">
+                  <div>
+                    <Card.Subtitle
+                      className="text-white-50 mb-2"
+                      style={{ fontSize: "0.85rem", letterSpacing: "0.5px" }}
+                    >
+                      UNREAD MESSAGES
+                    </Card.Subtitle>
+                    <Card.Text className="display-4 fw-bold text-white mb-0">
+                      {teacherData.stats.unreadMessages}
+                    </Card.Text>
+                  </div>
+                  <div className="stats-icon">
+                    <i className="bi bi-chat-dots-fill fs-1 text-white-50"></i>
+                  </div>
+                </div>
+                <div className="mt-3 text-white-50 small">
+                  <i className="bi bi-envelope me-1"></i>{" "}
+                  {teacherData.stats.unreadMessages} unread messages
+                </div>
               </Card.Body>
             </Card>
           </Col>
-          <Col md={3}>
-            <Card className="text-center shadow-sm">
-              <Card.Body>
-                <Card.Title>
-                  <i className="bi bi-calendar-event fs-1 text-info"></i>
-                </Card.Title>
-                <Card.Text className="fs-4 fw-bold">
-                  {teacherData.stats.todayClasses}
-                </Card.Text>
-                <Card.Subtitle className="text-muted">
-                  Today's Classes
-                </Card.Subtitle>
+
+          <Col lg={3} md={6}>
+            <Card
+              className="stats-card h-100 border-0"
+              style={{
+                background: "linear-gradient(135deg, #ff9a9e 0%, #fad0c4 100%)",
+              }}
+            >
+              <Card.Body className="p-4">
+                <div className="d-flex justify-content-between align-items-start">
+                  <div>
+                    <Card.Subtitle
+                      className="text-white-50 mb-2"
+                      style={{ fontSize: "0.85rem", letterSpacing: "0.5px" }}
+                    >
+                      TODAY'S CLASSES
+                    </Card.Subtitle>
+                    <Card.Text className="display-4 fw-bold text-white mb-0">
+                      {teacherData.stats.todayClasses}
+                    </Card.Text>
+                  </div>
+                  <div className="stats-icon">
+                    <i className="bi bi-calendar-event-fill fs-1 text-white-50"></i>
+                  </div>
+                </div>
+                <div className="mt-3 text-white-50 small">
+                  <i className="bi bi-clock me-1"></i>{" "}
+                  {teacherData.stats.todayClasses} classes scheduled
+                </div>
               </Card.Body>
             </Card>
           </Col>
@@ -786,6 +1120,7 @@ const Dashboard = () => {
               </Card.Body>
             </Card>
           </Col>
+
           <Col md={4}>
             <Card className="shadow-sm">
               <Card.Body>
@@ -866,6 +1201,7 @@ const Dashboard = () => {
               </Card.Body>
             </Card>
           </Col>
+
           <Col md={6}>
             <Card className="shadow-sm">
               <Card.Body>
@@ -917,62 +1253,128 @@ const Dashboard = () => {
   const studentDashboard = () => {
     return (
       <>
-        <Row className="mb-4">
-          <Col md={3}>
-            <Card className="text-center shadow-sm">
-              <Card.Body>
-                <Card.Title>
-                  <i className="bi bi-book fs-1 text-primary"></i>
-                </Card.Title>
-                <Card.Text className="fs-4 fw-bold">
-                  {studentData.stats.enrolledCourses}
-                </Card.Text>
-                <Card.Subtitle className="text-muted">
-                  Enrolled Courses
-                </Card.Subtitle>
+        <Row className="g-4 mb-4">
+          <Col lg={3} md={6}>
+            <Card
+              className="stats-card h-100 border-0"
+              style={{
+                background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+              }}
+            >
+              <Card.Body className="p-4">
+                <div className="d-flex justify-content-between align-items-start">
+                  <div>
+                    <Card.Subtitle
+                      className="text-white-50 mb-2"
+                      style={{ fontSize: "0.85rem", letterSpacing: "0.5px" }}
+                    >
+                      ENROLLED COURSES
+                    </Card.Subtitle>
+                    <Card.Text className="display-4 fw-bold text-white mb-0">
+                      {studentData.stats.enrolledCourses}
+                    </Card.Text>
+                  </div>
+                  <div className="stats-icon">
+                    <i className="bi bi-book-fill fs-1 text-white-50"></i>
+                  </div>
+                </div>
+                <div className="mt-3 text-white-50 small">
+                  <i className="bi bi-check-circle me-1"></i> Actively enrolled
+                </div>
               </Card.Body>
             </Card>
           </Col>
-          <Col md={3}>
-            <Card className="text-center shadow-sm">
-              <Card.Body>
-                <Card.Title>
-                  <i className="bi bi-check-circle fs-1 text-success"></i>
-                </Card.Title>
-                <Card.Text className="fs-4 fw-bold">
-                  {studentData.stats.attendanceRate}%
-                </Card.Text>
-                <Card.Subtitle className="text-muted">Attendance</Card.Subtitle>
+
+          <Col lg={3} md={6}>
+            <Card
+              className="stats-card h-100 border-0"
+              style={{
+                background: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
+              }}
+            >
+              <Card.Body className="p-4">
+                <div className="d-flex justify-content-between align-items-start">
+                  <div>
+                    <Card.Subtitle
+                      className="text-white-50 mb-2"
+                      style={{ fontSize: "0.85rem", letterSpacing: "0.5px" }}
+                    >
+                      ATTENDANCE
+                    </Card.Subtitle>
+                    <Card.Text className="display-4 fw-bold text-white mb-0">
+                      {studentData.stats.attendanceRate}%
+                    </Card.Text>
+                  </div>
+                  <div className="stats-icon">
+                    <i className="bi bi-calendar-check-fill fs-1 text-white-50"></i>
+                  </div>
+                </div>
+                <div className="mt-3 text-white-50 small">
+                  <i className="bi bi-graph-up me-1"></i> Above average
+                </div>
               </Card.Body>
             </Card>
           </Col>
-          <Col md={3}>
-            <Card className="text-center shadow-sm">
-              <Card.Body>
-                <Card.Title>
-                  <i className="bi bi-file-earmark-text fs-1 text-warning"></i>
-                </Card.Title>
-                <Card.Text className="fs-4 fw-bold">
-                  {studentData.stats.pendingAssignments}
-                </Card.Text>
-                <Card.Subtitle className="text-muted">
-                  Pending Assignments
-                </Card.Subtitle>
+
+          <Col lg={3} md={6}>
+            <Card
+              className="stats-card h-100 border-0"
+              style={{
+                background: "linear-gradient(135deg, #5f2c82 0%, #49a09d 100%)",
+              }}
+            >
+              <Card.Body className="p-4">
+                <div className="d-flex justify-content-between align-items-start">
+                  <div>
+                    <Card.Subtitle
+                      className="text-white-50 mb-2"
+                      style={{ fontSize: "0.85rem", letterSpacing: "0.5px" }}
+                    >
+                      PENDING ASSIGNMENTS
+                    </Card.Subtitle>
+                    <Card.Text className="display-4 fw-bold text-white mb-0">
+                      {studentData.stats.pendingAssignments}
+                    </Card.Text>
+                  </div>
+                  <div className="stats-icon">
+                    <i className="bi bi-file-earmark-text-fill fs-1 text-white-50"></i>
+                  </div>
+                </div>
+                <div className="mt-3 text-white-50 small">
+                  <i className="bi bi-exclamation-circle me-1"></i> Need
+                  attention
+                </div>
               </Card.Body>
             </Card>
           </Col>
-          <Col md={3}>
-            <Card className="text-center shadow-sm">
-              <Card.Body>
-                <Card.Title>
-                  <i className="bi bi-award fs-1 text-info"></i>
-                </Card.Title>
-                <Card.Text className="fs-4 fw-bold">
-                  {studentData.stats.averageGrade}%
-                </Card.Text>
-                <Card.Subtitle className="text-muted">
-                  Average Grade
-                </Card.Subtitle>
+
+          <Col lg={3} md={6}>
+            <Card
+              className="stats-card h-100 border-0"
+              style={{
+                background: "linear-gradient(135deg, #ff9a9e 0%, #fad0c4 100%)",
+              }}
+            >
+              <Card.Body className="p-4">
+                <div className="d-flex justify-content-between align-items-start">
+                  <div>
+                    <Card.Subtitle
+                      className="text-white-50 mb-2"
+                      style={{ fontSize: "0.85rem", letterSpacing: "0.5px" }}
+                    >
+                      AVERAGE GRADE
+                    </Card.Subtitle>
+                    <Card.Text className="display-4 fw-bold text-white mb-0">
+                      {studentData.stats.averageGrade}%
+                    </Card.Text>
+                  </div>
+                  <div className="stats-icon">
+                    <i className="bi bi-award-fill fs-1 text-white-50"></i>
+                  </div>
+                </div>
+                <div className="mt-3 text-white-50 small">
+                  <i className="bi bi-star-fill me-1"></i> Good performance
+                </div>
               </Card.Body>
             </Card>
           </Col>
@@ -1030,6 +1432,7 @@ const Dashboard = () => {
               </Card.Body>
             </Card>
           </Col>
+
           <Col md={6}>
             <Card className="shadow-sm">
               <Card.Body>
@@ -1160,6 +1563,7 @@ const Dashboard = () => {
               </Card.Body>
             </Card>
           </Col>
+
           <Col md={6}>
             <Card className="shadow-sm">
               <Card.Body>
@@ -1266,7 +1670,10 @@ const Dashboard = () => {
                     type="email"
                     value={studentForm.email}
                     onChange={(e) =>
-                      setStudentForm({ ...studentForm, email: e.target.value })
+                      setStudentForm({
+                        ...studentForm,
+                        email: e.target.value,
+                      })
                     }
                     required
                   />
@@ -1279,7 +1686,10 @@ const Dashboard = () => {
                     type="tel"
                     value={studentForm.phone}
                     onChange={(e) =>
-                      setStudentForm({ ...studentForm, phone: e.target.value })
+                      setStudentForm({
+                        ...studentForm,
+                        phone: e.target.value,
+                      })
                     }
                     required
                   />
@@ -1309,13 +1719,17 @@ const Dashboard = () => {
                   </Form.Select>
                 </Form.Group>
               </Col>
+
               <Col md={6}>
                 <Form.Group className="mb-3">
                   <Form.Label>Gender</Form.Label>
                   <Form.Select
                     value={studentForm.gender}
                     onChange={(e) =>
-                      setStudentForm({ ...studentForm, gender: e.target.value })
+                      setStudentForm({
+                        ...studentForm,
+                        gender: e.target.value,
+                      })
                     }
                   >
                     <option value="Male">Male</option>
@@ -1403,6 +1817,7 @@ const Dashboard = () => {
                   />
                 </Form.Group>
               </Col>
+
               <Col md={6}>
                 <Form.Group className="mb-3">
                   <Form.Label>Course Name *</Form.Label>
@@ -1429,7 +1844,10 @@ const Dashboard = () => {
                 rows={3}
                 value={courseForm.description}
                 onChange={(e) =>
-                  setCourseForm({ ...courseForm, description: e.target.value })
+                  setCourseForm({
+                    ...courseForm,
+                    description: e.target.value,
+                  })
                 }
                 placeholder="Course description"
               />
@@ -1456,13 +1874,17 @@ const Dashboard = () => {
                   </Form.Select>
                 </Form.Group>
               </Col>
+
               <Col md={4}>
                 <Form.Group className="mb-3">
                   <Form.Label>Teacher *</Form.Label>
                   <Form.Select
                     value={courseForm.teacher}
                     onChange={(e) =>
-                      setCourseForm({ ...courseForm, teacher: e.target.value })
+                      setCourseForm({
+                        ...courseForm,
+                        teacher: e.target.value,
+                      })
                     }
                     required
                   >
@@ -1475,6 +1897,7 @@ const Dashboard = () => {
                   </Form.Select>
                 </Form.Group>
               </Col>
+
               <Col md={4}>
                 <Form.Group className="mb-3">
                   <Form.Label>Max Students</Form.Label>
@@ -1501,7 +1924,10 @@ const Dashboard = () => {
                   <Form.Select
                     value={courseForm.semester}
                     onChange={(e) =>
-                      setCourseForm({ ...courseForm, semester: e.target.value })
+                      setCourseForm({
+                        ...courseForm,
+                        semester: e.target.value,
+                      })
                     }
                   >
                     <option>Fall 2024</option>
@@ -1511,6 +1937,7 @@ const Dashboard = () => {
                   </Form.Select>
                 </Form.Group>
               </Col>
+
               <Col md={6}>
                 <Form.Group className="mb-3">
                   <Form.Label>Academic Year</Form.Label>
@@ -1558,6 +1985,7 @@ const Dashboard = () => {
                     <option>Saturday</option>
                   </Form.Select>
                 </Col>
+
                 <Col md={2}>
                   <Form.Control
                     size="sm"
@@ -1568,6 +1996,7 @@ const Dashboard = () => {
                     }
                   />
                 </Col>
+
                 <Col md={2}>
                   <Form.Control
                     size="sm"
@@ -1578,6 +2007,7 @@ const Dashboard = () => {
                     }
                   />
                 </Col>
+
                 <Col md={3}>
                   <Form.Control
                     size="sm"
@@ -1589,6 +2019,7 @@ const Dashboard = () => {
                     }
                   />
                 </Col>
+
                 <Col md={2}>
                   <Button
                     size="sm"
@@ -1714,6 +2145,7 @@ const Dashboard = () => {
                   </Form.Select>
                 </Form.Group>
               </Col>
+
               <Col md={6}>
                 <Form.Group className="mb-3">
                   <Form.Label>Recipients</Form.Label>

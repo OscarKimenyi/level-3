@@ -1,29 +1,29 @@
 import React from "react";
-import { NavLink as RouterNavLink } from "react-router-dom";
+import { NavLink as RouterNavLink, useLocation } from "react-router-dom";
 import { Nav } from "react-bootstrap";
 import useAuth from "../../context/useAuth";
 
 const Sidebar = ({ isOpen, closeSidebar, isMobile }) => {
   const { user } = useAuth();
+  const location = useLocation();
 
   const getNavItems = () => {
     const commonItems = [
       { path: "/dashboard", icon: "bi-speedometer2", label: "Dashboard" },
       { path: "/courses", icon: "bi-book", label: "Courses" },
       { path: "/assignments", icon: "bi-journal-text", label: "Assignments" },
-      { path: "/chat", icon: "bi-chat", label: "Chat" },
+      { path: "/chat", icon: "bi-chat", label: "Messages" },
     ];
 
     const adminItems = [
-      { path: "/profile/admin", icon: "bi-person", label: "My Profile" },
       { path: "/students", icon: "bi-people", label: "Students" },
       { path: "/teachers", icon: "bi-person-badge", label: "Teachers" },
       { path: "/attendance", icon: "bi-calendar-check", label: "Attendance" },
     ];
 
     const teacherItems = [
-      { path: "/profile/teacher", icon: "bi-person", label: "My Profile" },
       { path: "/attendance", icon: "bi-calendar-check", label: "Attendance" },
+      { path: "/profile/teacher", icon: "bi-person", label: "My Profile" },
     ];
 
     const studentItems = [
@@ -52,78 +52,76 @@ const Sidebar = ({ isOpen, closeSidebar, isMobile }) => {
 
   const navItems = getNavItems();
 
-  // Close sidebar when clicking a link on mobile
   const handleLinkClick = () => {
     if (isMobile) {
       closeSidebar();
     }
   };
 
+  // Helper function to determine if a path is active
+  const isActivePath = (path) => {
+    return location.pathname === path;
+  };
+
   if (!isOpen && isMobile) {
-    return null; // Don't render on mobile when closed
+    return null;
   }
 
   return (
     <div
-      className="bg-dark text-white sidebar"
+      className="sidebar-modern"
       style={{
-        width: isOpen ? "250px" : isMobile ? "0" : "250px",
-        minHeight: "calc(100vh - 56px)",
-        overflowY: "auto",
-        transition: "width 0.3s ease",
-        position: isMobile ? "fixed" : "fixed",
-        left: 0,
-        top: "56px",
-        zIndex: 1000,
-        display: isOpen ? "block" : isMobile ? "none" : "block",
-        boxShadow: isOpen ? "2px 0 5px rgba(0,0,0,0.1)" : "none",
+        width: isOpen ? "280px" : isMobile ? "0" : "280px",
+        transform: `translateX(${isOpen ? "0" : isMobile ? "-100%" : "0"})`,
+        transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
       }}
     >
-      <div className="p-3">
-        <div className="d-flex justify-content-between align-items-center w-100 mb-4">
-          <h5 className="mb-0 text-white">Menu</h5>
-          {isMobile && isOpen && (
-            <button
-              className="btn btn-sm btn-outline-light"
-              onClick={closeSidebar}
-              aria-label="Close sidebar"
-            >
-              <i className="bi bi-x-lg"></i>
-            </button>
-          )}
+      <div className="sidebar-header">
+        <div className="sidebar-brand">
+          <i className="bi bi-mortarboard-fill"></i>
+          <span>Student MS</span>
         </div>
+        {isMobile && isOpen && (
+          <button className="sidebar-close" onClick={closeSidebar}>
+            <i className="bi bi-x-lg"></i>
+          </button>
+        )}
+      </div>
 
-        <Nav className="flex-column">
-          {navItems.map((item, index) => (
+      <div className="sidebar-user">
+        <div className="user-avatar">
+          {user?.username?.charAt(0).toUpperCase()}
+        </div>
+        <div className="user-details">
+          <div className="user-name">{user?.username}</div>
+          <div className="user-email">{user?.email}</div>
+        </div>
+      </div>
+
+      <Nav className="sidebar-nav flex-column">
+        {navItems.map((item, index) => {
+          const isActive = isActivePath(item.path);
+
+          return (
             <Nav.Link
               key={index}
               as={RouterNavLink}
               to={item.path}
-              className="text-white mb-2 rounded"
+              className={`sidebar-link ${isActive ? "active" : ""}`}
               onClick={handleLinkClick}
-              style={({ isActive }) => ({
-                backgroundColor: isActive ? "#0d6efd" : "transparent",
-                padding: "10px 15px",
-                textDecoration: "none",
-                color: "white",
-                display: "block",
-              })}
             >
-              <i className={`bi ${item.icon} me-2`}></i>
-              {item.label}
+              <i className={`bi ${item.icon} sidebar-icon`}></i>
+              <span className="sidebar-label">{item.label}</span>
+              {item.badge && (
+                <span className="sidebar-badge">{item.badge}</span>
+              )}
             </Nav.Link>
-          ))}
-        </Nav>
+          );
+        })}
+      </Nav>
 
-        <div className="mt-auto w-100">
-          <div className="text-center text-muted small mt-4">
-            <div>
-              Role:
-              <span className="text-info text-uppercase">{user?.role}</span>
-            </div>
-            <div className="mt-2">v1.0.0</div>
-          </div>
-        </div>
+      <div className="sidebar-footer">
+        <div className="sidebar-version">v1.0.0</div>
       </div>
     </div>
   );

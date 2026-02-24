@@ -10,7 +10,7 @@ import {
 } from "react-bootstrap";
 import useAuth from "../../context/useAuth";
 import useSocket from "../../context/useSocket";
-import useNotifications from "../../context/useNotifications";
+import { useNotifications } from "../../context/useNotifications";
 import NotificationsPanel from "../notifications/NotificationsPanel";
 
 const Navbar = ({ toggleSidebar }) => {
@@ -21,15 +21,9 @@ const Navbar = ({ toggleSidebar }) => {
   const [darkMode, setDarkMode] = useState(
     localStorage.getItem("darkMode") === "true",
   );
-
-  const cleanUsername = (username) => {
-    if (!username) return "User";
-    // Remove numbers and underscores at the end
-    return username.replace(/[0-9_]+$/, "");
-  };
+  const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
-    // Apply dark mode class to body
     if (darkMode) {
       document.body.classList.add("dark-mode");
     } else {
@@ -37,6 +31,14 @@ const Navbar = ({ toggleSidebar }) => {
     }
     localStorage.setItem("darkMode", darkMode);
   }, [darkMode]);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 10);
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   const handleLogout = () => {
     logout();
@@ -47,122 +49,144 @@ const Navbar = ({ toggleSidebar }) => {
     setDarkMode(!darkMode);
   };
 
+  const cleanUsername = (username) => {
+    if (!username) return "User";
+    return username.replace(/[0-9_]+$/, "");
+  };
+
   return (
     <BootstrapNavbar
-      bg={darkMode ? "dark" : "primary"}
-      variant={darkMode ? "dark" : "dark"}
       expand="lg"
-      className="shadow-sm sticky-top"
-      style={{ transition: "all 0.3s ease" }}
+      className={`navbar-modern sticky-top py-2 ${scrolled ? "navbar-scrolled" : ""} ${darkMode ? "navbar-dark" : "navbar-light"}`}
+      style={{
+        background: darkMode
+          ? "linear-gradient(135deg, #1e1e2f 0%, #2d2d44 100%)"
+          : "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+        transition: "all 0.3s ease",
+        boxShadow: scrolled ? "0 4px 20px rgba(0,0,0,0.1)" : "none",
+      }}
     >
       <Container fluid>
-        <Button
-          variant="outline-light"
-          className="me-3 d-lg-none"
-          onClick={toggleSidebar}
-          size="sm"
-        >
-          <i className="bi bi-list"></i>
-        </Button>
+        <div className="d-flex align-items-center">
+          <Button
+            variant="link"
+            className="sidebar-toggle p-0 me-3 d-lg-none"
+            onClick={toggleSidebar}
+            style={{ color: "#fff", fontSize: "1.5rem" }}
+          >
+            <i className="bi bi-list"></i>
+          </Button>
 
-        <BootstrapNavbar.Brand
-          as={Link}
-          to="/dashboard"
-          className="fw-bold text-white"
-        >
-          <i className="bi bi-mortarboard-fill me-2"></i>
-          SMS
-        </BootstrapNavbar.Brand>
+          <BootstrapNavbar.Brand
+            as={Link}
+            to="/dashboard"
+            className="fw-bold d-flex align-items-center"
+          >
+            <div className="brand-icon me-2">
+              <i
+                className="bi bi-mortarboard-fill"
+                style={{ fontSize: "1.8rem" }}
+              ></i>
+            </div>
+            <span
+              className="brand-text"
+              style={{ fontSize: "1.4rem", fontWeight: "600" }}
+            >
+              SMS
+            </span>
+          </BootstrapNavbar.Brand>
+        </div>
 
-        <BootstrapNavbar.Toggle
-          aria-controls="navbar-nav"
-          className="border-light"
-        />
-
-        <BootstrapNavbar.Collapse id="navbar-nav">
-          <Nav className="me-auto">
-            <Nav.Link as={Link} to="/dashboard" className="text-white">
-              <i className="bi bi-speedometer2 me-1"></i>
-              Dashboard
-            </Nav.Link>
-          </Nav>
-        </BootstrapNavbar.Collapse>
-
-        <div className="d-flex align-items-center gap-2">
+        <div className="d-flex align-items-center gap-3">
           {/* Dark Mode Toggle */}
           <Button
-            variant="outline-light"
-            size="sm"
+            variant="link"
+            className="theme-toggle p-0"
             onClick={toggleDarkMode}
-            className="d-flex align-items-center"
-            title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+            style={{ color: "#fff", fontSize: "1.3rem" }}
           >
             <i
               className={`bi ${darkMode ? "bi-sun-fill" : "bi-moon-fill"}`}
             ></i>
           </Button>
-          {/* Connection Status */}
-          <Badge
-            bg={isConnected ? "success" : "danger"}
-            className="d-none d-md-inline px-3 py-2"
-            pill
-          >
-            <i
-              className={`bi bi-circle-fill me-1`}
-              style={{ fontSize: "0.6rem" }}
-            ></i>
-            {isConnected ? "Online" : "Offline"}
-          </Badge>
+
+          {/* Connection Status - Hidden on mobile */}
+          <div className="connection-status d-none d-md-flex align-items-center">
+            <span
+              className={`status-dot ${isConnected ? "connected" : "disconnected"}`}
+            ></span>
+            <span
+              className="status-text ms-2"
+              style={{ color: "#fff", fontSize: "0.9rem" }}
+            >
+              {isConnected ? "Online" : "Offline"}
+            </span>
+          </div>
 
           {/* Notifications */}
-          <div className="position-relative">
+          <div className="notifications-wrapper position-relative">
             <Button
               variant="link"
-              className="text-white p-0 position-relative"
+              className="p-0 position-relative"
               onClick={() => setPanelOpen(!panelOpen)}
-              aria-label="Notifications"
+              style={{ color: "#fff", fontSize: "1.3rem" }}
             >
-              <i className="bi bi-bell fs-5"></i>
+              <i className="bi bi-bell"></i>
               {unreadCount > 0 && (
-                <span
-                  className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
-                  style={{ fontSize: "0.6rem" }}
-                >
-                  {unreadCount > 99 ? "99+" : unreadCount}
+                <span className="notification-badge">
+                  {unreadCount > 9 ? "9+" : unreadCount}
                 </span>
               )}
             </Button>
 
-            {/* Notifications Panel */}
             {panelOpen && (
               <NotificationsPanel onClose={() => setPanelOpen(false)} />
             )}
           </div>
 
-          {/* User Dropdown */}
-          <NavDropdown
-            title={
-              <span className="text-white d-flex align-items-center">
-                <i className="bi bi-person-circle me-1 fs-5"></i>
-                <span className="d-none d-md-inline">
-                  {cleanUsername(user?.username) || "User"}
-                </span>
-              </span>
-            }
-            align="end"
-            className="text-white"
-            id="user-dropdown"
-          >
-            <NavDropdown.Item as={Link} to={`/profile/${user?.role}`}>
-              <i className="bi bi-person me-2"></i>
-              My Profile
-            </NavDropdown.Item>
-            <NavDropdown.Divider />
-            <NavDropdown.Item onClick={handleLogout}>
-              <i className="bi bi-box-arrow-right me-2"></i>
-              Logout
-            </NavDropdown.Item>
-          </NavDropdown>
+          {/* User Menu */}
+          <div className="user-menu">
+            <div className="dropdown">
+              <Button
+                variant="link"
+                className="p-0 d-flex align-items-center"
+                data-bs-toggle="dropdown"
+                style={{ color: "#fff", textDecoration: "none" }}
+              >
+                <div className="user-avatar me-2">
+                  <i
+                    className="bi bi-person-circle"
+                    style={{ fontSize: "1.8rem" }}
+                  ></i>
+                </div>
+                <div className="user-info d-none d-md-block">
+                  <div className="user-name" style={{ fontWeight: "500" }}>
+                    {cleanUsername(user?.username)}
+                  </div>
+                  <div
+                    className="user-role"
+                    style={{ fontSize: "0.8rem", opacity: 0.8 }}
+                  >
+                    {user?.role}
+                  </div>
+                </div>
+                <i className="bi bi-chevron-down ms-1 d-none d-md-block"></i>
+              </Button>
+
+              <div className="dropdown-menu dropdown-menu-end modern-dropdown">
+                <Link className="dropdown-item" to={`/profile/${user?.role}`}>
+                  <i className="bi bi-person me-2"></i>My Profile
+                </Link>
+                <div className="dropdown-divider"></div>
+                <button
+                  className="dropdown-item text-danger"
+                  onClick={handleLogout}
+                >
+                  <i className="bi bi-box-arrow-right me-2"></i>Logout
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </Container>
     </BootstrapNavbar>

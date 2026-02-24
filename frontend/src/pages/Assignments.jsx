@@ -575,8 +575,12 @@ const Assignments = () => {
                         <Button
                           variant="link"
                           size="sm"
-                          href={`http://localhost:5000/${sub.submittedFile.path}`}
-                          target="_blank"
+                          onClick={() =>
+                            window.open(
+                              `http://localhost:5000/${sub.submittedFile.path}`,
+                              "_blank",
+                            )
+                          }
                         >
                           <i className="bi bi-file-earmark"></i> View
                         </Button>

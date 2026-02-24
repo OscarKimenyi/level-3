@@ -238,7 +238,6 @@ const updateTeacher = async (req, res) => {
 
     // Teachers can only update certain fields
     if (!isAdmin) {
-      // Allow teachers to update only these fields
       const allowedFields = [
         "firstName",
         "lastName",

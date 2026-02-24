@@ -39,6 +39,94 @@ const Teachers = () => {
     joiningDate: "",
   });
 
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingTeacher, setEditingTeacher] = useState(null);
+  const [editFormData, setEditFormData] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
+    qualification: "",
+    specialization: "",
+    department: "",
+    status: "active",
+  });
+
+  // Add this function to open edit modal
+  const openEditModal = (teacher) => {
+    setEditingTeacher(teacher);
+    setEditFormData({
+      firstName: teacher.firstName || "",
+      lastName: teacher.lastName || "",
+      email: teacher.userId?.email || "",
+      phone: teacher.contactNumber || "",
+      qualification: teacher.qualification || "",
+      specialization: Array.isArray(teacher.specialization)
+        ? teacher.specialization.join(", ")
+        : teacher.specialization || "",
+      department: teacher.department || "",
+      status: teacher.status || "active",
+    });
+    setShowEditModal(true);
+  };
+
+  // Add this function to handle edit submission
+  const handleEditTeacher = async () => {
+    try {
+      setSubmitting(true);
+      setError("");
+
+      // Validate required fields
+      if (
+        !editFormData.firstName ||
+        !editFormData.lastName ||
+        !editFormData.phone
+      ) {
+        setError("Please fill in all required fields");
+        setSubmitting(false);
+        return;
+      }
+
+      // Parse specialization from comma-separated string to array
+      const specializationArray = editFormData.specialization
+        ? editFormData.specialization
+            .split(",")
+            .map((s) => s.trim())
+            .filter((s) => s)
+        : [];
+
+      const updateData = {
+        firstName: editFormData.firstName,
+        lastName: editFormData.lastName,
+        contactNumber: editFormData.phone,
+        qualification: editFormData.qualification,
+        specialization: specializationArray,
+        department: editFormData.department,
+        status: editFormData.status,
+      };
+
+      console.log("Updating teacher with data:", updateData);
+
+      const response = await api.put(
+        `/teachers/${editingTeacher._id}`,
+        updateData,
+      );
+
+      if (response.data.success) {
+        setSuccess("Teacher updated successfully");
+        setShowEditModal(false);
+        fetchTeachers(); // Refresh the list
+
+        setTimeout(() => setSuccess(""), 3000);
+      }
+    } catch (err) {
+      console.error("Error updating teacher:", err);
+      setError(err.response?.data?.message || "Failed to update teacher");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const navigate = useNavigate();
 
   // Wrap fetchTeachers in useCallback to include in dependencies
@@ -293,9 +381,7 @@ const Teachers = () => {
                           variant="outline-warning"
                           size="sm"
                           className="me-2"
-                          onClick={() => {
-                            /* Implement edit */
-                          }}
+                          onClick={() => openEditModal(teacher)}
                         >
                           <i className="bi bi-pencil"></i>
                         </Button>
@@ -524,6 +610,177 @@ const Teachers = () => {
           </Button>
           <Button variant="danger" onClick={handleDeleteTeacher}>
             Delete
+          </Button>
+        </Modal.Footer>
+      </Modal>
+      {/* Edit Teacher Modal */}
+      <Modal
+        show={showEditModal}
+        onHide={() => setShowEditModal(false)}
+        size="lg"
+      >
+        <Modal.Header closeButton>
+          <Modal.Title>Edit Teacher</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Form>
+            <Row>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>First Name *</Form.Label>
+                  <Form.Control
+                    type="text"
+                    value={editFormData.firstName}
+                    onChange={(e) =>
+                      setEditFormData({
+                        ...editFormData,
+                        firstName: e.target.value,
+                      })
+                    }
+                    required
+                  />
+                </Form.Group>
+              </Col>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Last Name *</Form.Label>
+                  <Form.Control
+                    type="text"
+                    value={editFormData.lastName}
+                    onChange={(e) =>
+                      setEditFormData({
+                        ...editFormData,
+                        lastName: e.target.value,
+                      })
+                    }
+                    required
+                  />
+                </Form.Group>
+              </Col>
+            </Row>
+
+            <Row>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Email</Form.Label>
+                  <Form.Control
+                    type="email"
+                    value={editFormData.email}
+                    disabled
+                  />
+                  <Form.Text className="text-muted">
+                    Email cannot be changed
+                  </Form.Text>
+                </Form.Group>
+              </Col>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Phone *</Form.Label>
+                  <Form.Control
+                    type="tel"
+                    value={editFormData.phone}
+                    onChange={(e) =>
+                      setEditFormData({
+                        ...editFormData,
+                        phone: e.target.value,
+                      })
+                    }
+                    required
+                  />
+                </Form.Group>
+              </Col>
+            </Row>
+
+            <Row>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Qualification</Form.Label>
+                  <Form.Control
+                    type="text"
+                    value={editFormData.qualification}
+                    onChange={(e) =>
+                      setEditFormData({
+                        ...editFormData,
+                        qualification: e.target.value,
+                      })
+                    }
+                    placeholder="e.g., MSc, PhD"
+                  />
+                </Form.Group>
+              </Col>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Department</Form.Label>
+                  <Form.Select
+                    value={editFormData.department}
+                    onChange={(e) =>
+                      setEditFormData({
+                        ...editFormData,
+                        department: e.target.value,
+                      })
+                    }
+                  >
+                    <option value="">Select Department</option>
+                    <option value="Mathematics">Mathematics</option>
+                    <option value="Science">Science</option>
+                    <option value="English">English</option>
+                    <option value="History">History</option>
+                    <option value="Computer Science">Computer Science</option>
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+            </Row>
+
+            <Form.Group className="mb-3">
+              <Form.Label>Specialization (comma separated)</Form.Label>
+              <Form.Control
+                type="text"
+                value={editFormData.specialization}
+                onChange={(e) =>
+                  setEditFormData({
+                    ...editFormData,
+                    specialization: e.target.value,
+                  })
+                }
+                placeholder="e.g., Mathematics, Physics, Chemistry"
+              />
+              <Form.Text className="text-muted">
+                Enter multiple specializations separated by commas
+              </Form.Text>
+            </Form.Group>
+
+            <Form.Group className="mb-3">
+              <Form.Label>Status</Form.Label>
+              <Form.Select
+                value={editFormData.status}
+                onChange={(e) =>
+                  setEditFormData({ ...editFormData, status: e.target.value })
+                }
+              >
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+                <option value="on-leave">On Leave</option>
+              </Form.Select>
+            </Form.Group>
+          </Form>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowEditModal(false)}>
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            onClick={handleEditTeacher}
+            disabled={submitting}
+          >
+            {submitting ? (
+              <>
+                <span className="spinner-border spinner-border-sm me-2"></span>
+                Saving...
+              </>
+            ) : (
+              "Save Changes"
+            )}
           </Button>
         </Modal.Footer>
       </Modal>
