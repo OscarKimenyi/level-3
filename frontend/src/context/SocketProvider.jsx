@@ -7,62 +7,99 @@ const SocketProvider = ({ children }) => {
   const [isConnected, setIsConnected] = useState(false);
   const [socketId, setSocketId] = useState(null);
   const socketRef = useRef(null);
-  const { isAuthenticated, token } = useAuth();
+  const { isAuthenticated, token, user } = useAuth();
+  const reconnectAttempts = useRef(0);
 
-  useEffect(() => {
+  // Initialize socket connection
+  const connectSocket = useCallback(() => {
     if (!isAuthenticated || !token) {
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-        socketRef.current = null;
-      }
+      console.log("🔌 Not authenticated, skipping socket connection");
+      console.log("Auth state:", isAuthenticated);
+      console.log("Token exists:", !!token);
       return;
     }
 
-    // Create new socket connection with better options
-    const socketInstance = io(import.meta.env.VITE_SOCKET_URL, {
+    // Clean up existing socket
+    if (socketRef.current) {
+      console.log("🧹 Cleaning up existing socket");
+      socketRef.current.removeAllListeners();
+      socketRef.current.disconnect();
+      socketRef.current = null;
+    }
+
+    console.log("🔌 Attempting to connect to socket server...");
+
+    const SOCKET_URL =
+      import.meta.env.VITE_SOCKET_URL || "http://localhost:5000";
+    console.log("📡 Connecting to socket URL:", SOCKET_URL);
+
+    const socketInstance = io(SOCKET_URL, {
       withCredentials: true,
       auth: { token },
       transports: ["websocket", "polling"],
       reconnection: true,
-      reconnectionAttempts: 10,
+      reconnectionAttempts: 20,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
       timeout: 20000,
+      forceNew: true,
     });
 
     socketRef.current = socketInstance;
 
     socketInstance.on("connect", () => {
-      console.log("Connected to socket server");
+      console.log("✅ Connected to socket server with ID:", socketInstance.id);
       setIsConnected(true);
       setSocketId(socketInstance.id);
+      reconnectAttempts.current = 0;
+
+      // Authenticate immediately after connection
       socketInstance.emit("authenticate", token);
     });
 
+    socketInstance.on("authenticated", (data) => {
+      if (data.success) {
+        console.log(
+          "✅ Socket authenticated successfully for user:",
+          user?.email,
+        );
+      } else {
+        console.log("❌ Socket authentication failed:", data.error);
+      }
+    });
+
     socketInstance.on("disconnect", (reason) => {
-      console.log("Disconnected from socket server:", reason);
+      console.log("❌ Disconnected from socket server:", reason);
       setIsConnected(false);
       setSocketId(null);
 
+      // Try to reconnect if not intentional
       if (reason === "io server disconnect") {
         // Reconnect manually if server disconnected
-        socketInstance.connect();
+        setTimeout(() => {
+          if (isAuthenticated) {
+            socketInstance.connect();
+          }
+        }, 1000);
       }
     });
 
     socketInstance.on("connect_error", (error) => {
-      console.error("Socket connection error:", error);
+      console.error("Socket connection error:", error.message);
       setIsConnected(false);
       setSocketId(null);
+      reconnectAttempts.current += 1;
     });
 
     socketInstance.on("reconnect", (attemptNumber) => {
-      console.log(`Reconnected after ${attemptNumber} attempts`);
+      console.log(`✅ Reconnected after ${attemptNumber} attempts`);
       setIsConnected(true);
+      // Re-authenticate after reconnect
+      socketInstance.emit("authenticate", token);
     });
 
     socketInstance.on("reconnect_attempt", (attemptNumber) => {
-      console.log(`Reconnection attempt #${attemptNumber}`);
+      console.log(`🔄 Reconnection attempt #${attemptNumber}`);
     });
 
     socketInstance.on("reconnect_error", (error) => {
@@ -74,39 +111,43 @@ const SocketProvider = ({ children }) => {
       setIsConnected(false);
     });
 
-    // In the useEffect where socket is created, add:
+    return socketInstance;
+  }, [isAuthenticated, token, user?.email]);
 
-    socketInstance.on("connect", () => {
-      console.log("✅ Connected to socket server with ID:", socketInstance.id);
-      setIsConnected(true);
-      setSocketId(socketInstance.id);
-      socketInstance.emit("authenticate", token);
-    });
+  // Connect when authenticated
+  useEffect(() => {
+    let socketInstance;
 
-    socketInstance.on("authenticated", (data) => {
-      console.log("🔄 Socket authentication response:", data);
-      if (data.success) {
-        console.log("Socket authenticated successfully");
-      } else {
-        console.log("Socket authentication failed:", data.error);
-      }
-    });
+    if (isAuthenticated && token) {
+      // Small delay to ensure token is properly set
+      const timer = setTimeout(() => {
+        socketInstance = connectSocket();
+      }, 500);
 
-    // Cleanup function
-    return () => {
+      return () => {
+        clearTimeout(timer);
+        if (socketInstance) {
+          socketInstance.disconnect();
+        }
+      };
+    } else {
+      // Clean up when not authenticated
       if (socketRef.current) {
-        socketRef.current.removeAllListeners();
         socketRef.current.disconnect();
         socketRef.current = null;
       }
-    };
-  }, [isAuthenticated, token]);
+      //setIsConnected(false);
+      //setSocketId(null);
+    }
+
+    return () => {};
+  }, [isAuthenticated, token, connectSocket]);
 
   // Emit event helper
   const emit = useCallback(
-    (event, data) => {
+    (event, data, callback) => {
       if (socketRef.current && isConnected) {
-        socketRef.current.emit(event, data);
+        socketRef.current.emit(event, data, callback);
         return true;
       }
       console.warn("Socket not connected, cannot emit:", event);
@@ -124,11 +165,19 @@ const SocketProvider = ({ children }) => {
     return () => {};
   }, []);
 
+  // Off event helper
+  const off = useCallback((event, callback) => {
+    if (socketRef.current) {
+      socketRef.current.off(event, callback);
+    }
+  }, []);
+
   const value = {
     isConnected,
     socketId,
     emit,
     on,
+    off,
   };
 
   return (

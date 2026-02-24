@@ -1,17 +1,18 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import NotificationContext from "./NotificationContext";
 import useAuth from "./useAuth";
 import useSocket from "./useSocket";
 import api from "../services/api";
 
 export const NotificationProvider = ({ children }) => {
-  const { isAuthenticated } = useAuth();
-  const { socket, on } = useSocket();
+  const { isAuthenticated, user } = useAuth();
+  const { isConnected, on } = useSocket();
 
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
+  const listenerAttached = useRef(false);
 
   // Fetch notifications
   const fetchNotifications = useCallback(
@@ -23,8 +24,8 @@ export const NotificationProvider = ({ children }) => {
         const response = await api.get(
           `/notifications?unreadOnly=${unreadOnly}&limit=50`,
         );
-        setNotifications(response.data.data);
-        setUnreadCount(response.data.unreadCount);
+        setNotifications(response.data.data || []);
+        setUnreadCount(response.data.unreadCount || 0);
       } catch (error) {
         console.error("Error fetching notifications:", error);
       } finally {
@@ -40,42 +41,30 @@ export const NotificationProvider = ({ children }) => {
 
     try {
       const response = await api.get("/notifications/unread-count");
-      setUnreadCount(response.data.count);
+      setUnreadCount(response.data.count || 0);
     } catch (error) {
       console.error("Error fetching unread count:", error);
     }
   }, [isAuthenticated]);
 
   // Mark notification as read
-  const markAsRead = useCallback(
-    async (notificationId) => {
-      try {
-        await api.put(`/notifications/${notificationId}/read`);
+  const markAsRead = useCallback(async (notificationId) => {
+    try {
+      await api.put(`/notifications/${notificationId}/read`);
 
-        // Update local state
-        setNotifications((prev) =>
-          prev.map((n) =>
-            n._id === notificationId ? { ...n, read: true } : n,
-          ),
-        );
-        setUnreadCount((prev) => Math.max(0, prev - 1));
-
-        // Emit socket event
-        if (socket) {
-          socket.emit("notification_read", { notificationId });
-        }
-      } catch (error) {
-        console.error("Error marking notification as read:", error);
-      }
-    },
-    [socket],
-  );
+      setNotifications((prev) =>
+        prev.map((n) => (n._id === notificationId ? { ...n, read: true } : n)),
+      );
+      setUnreadCount((prev) => Math.max(0, prev - 1));
+    } catch (error) {
+      console.error("Error marking notification as read:", error);
+    }
+  }, []);
 
   // Mark all as read
   const markAllAsRead = useCallback(async () => {
     try {
       await api.put("/notifications/read-all");
-
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
       setUnreadCount(0);
     } catch (error) {
@@ -88,11 +77,10 @@ export const NotificationProvider = ({ children }) => {
     async (notificationId) => {
       try {
         await api.delete(`/notifications/${notificationId}`);
-
         setNotifications((prev) =>
           prev.filter((n) => n._id !== notificationId),
         );
-        // Update unread count if the deleted notification was unread
+
         const deleted = notifications.find((n) => n._id === notificationId);
         if (deleted && !deleted.read) {
           setUnreadCount((prev) => Math.max(0, prev - 1));
@@ -117,17 +105,30 @@ export const NotificationProvider = ({ children }) => {
 
   // Listen for real-time notifications
   useEffect(() => {
-    if (!socket || !isAuthenticated) {
-      console.log("🔌 Socket not available or not authenticated");
+    if (!isAuthenticated) {
+      console.log("🔒 User not authenticated, skipping notification listener");
       return;
     }
 
-    console.log("📡 Setting up notification listener");
+    if (!isConnected) {
+      console.log("🔌 Socket not connected, waiting for connection...");
+      // Set up a retry mechanism
+      const retryTimer = setTimeout(() => {
+        if (isConnected) {
+          console.log("📡 Socket now connected, setting up listener");
+        }
+      }, 2000);
+      return () => clearTimeout(retryTimer);
+    }
+
+    console.log(
+      "📡 Setting up real-time notification listener for user:",
+      user?.email,
+    );
 
     const handleNewNotification = (data) => {
       console.log("📨 New notification received:", data);
 
-      // Add to notifications list
       const newNotification = {
         _id: data._id || Date.now().toString(),
         title: data.title,
@@ -149,7 +150,7 @@ export const NotificationProvider = ({ children }) => {
 
       setUnreadCount((prev) => prev + 1);
 
-      // Play sound (optional)
+      // Play sound
       try {
         const audio = new Audio("/notification.mp3");
         audio.play().catch((e) => console.log("🔇 Audio play failed:", e));
@@ -157,7 +158,7 @@ export const NotificationProvider = ({ children }) => {
         console.log("🔇 Audio not supported");
       }
 
-      // Show browser notification if permitted
+      // Show browser notification
       if (Notification.permission === "granted") {
         try {
           new Notification(data.title, {
@@ -171,7 +172,10 @@ export const NotificationProvider = ({ children }) => {
       }
     };
 
+    // Attach listener
     const unsubscribe = on("new_notification", handleNewNotification);
+    listenerAttached.current = true;
+    console.log("✅ Notification listener attached successfully");
 
     // Request notification permission
     if (Notification.permission === "default") {
@@ -180,49 +184,32 @@ export const NotificationProvider = ({ children }) => {
       });
     }
 
-    // Test connection
-    if (socket.connected) {
-      console.log("Socket is connected");
-    } else {
-      console.log("Socket is not connected");
-    }
+    // Initial fetch
+    fetchNotifications();
+    fetchUnreadCount();
 
     return () => {
       console.log("📡 Cleaning up notification listener");
       unsubscribe();
+      listenerAttached.current = false;
     };
-  }, [socket, isAuthenticated, on]);
+  }, [
+    isAuthenticated,
+    isConnected,
+    user?.email,
+    on,
+    fetchNotifications,
+    fetchUnreadCount,
+  ]);
 
-  // Add this useEffect to log socket connection status
+  // Poll for unread count as fallback (every 30 seconds)
   useEffect(() => {
-    if (socket) {
-      console.log(
-        "🔄 Socket status:",
-        socket.connected ? "connected" : "disconnected",
-      );
+    if (!isAuthenticated) return;
 
-      const onConnect = () => console.log("Socket connected");
-      const onDisconnect = () => console.log("Socket disconnected");
-
-      socket.on("connect", onConnect);
-      socket.on("disconnect", onDisconnect);
-
-      return () => {
-        socket.off("connect", onConnect);
-        socket.off("disconnect", onDisconnect);
-      };
-    }
-  }, [socket]);
-  // Initial fetch
-  useEffect(() => {
-    if (isAuthenticated) {
-      fetchNotifications();
-
-      // Set up polling for unread count (fallback)
-      const interval = setInterval(fetchUnreadCount, 30000);
-      return () => clearInterval(interval);
-    }
-  }, [isAuthenticated, fetchNotifications, fetchUnreadCount]);
+    fetchUnreadCount();
+    const interval = setInterval(fetchUnreadCount, 30000);
+    return () => clearInterval(interval);
+  }, [isAuthenticated, fetchUnreadCount]);
 
   const value = {
     notifications,
