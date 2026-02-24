@@ -35,6 +35,7 @@ const messageSchema = new mongoose.Schema(
   },
 );
 
+// Generate conversation ID before saving
 messageSchema.pre("save", function (next) {
   if (!this.conversationId) {
     const participants = [
@@ -45,5 +46,8 @@ messageSchema.pre("save", function (next) {
   }
   next();
 });
+
+// Add index for faster queries
+messageSchema.index({ sender: 1, receiver: 1, timestamp: -1 });
 
 module.exports = mongoose.model("Message", messageSchema);
