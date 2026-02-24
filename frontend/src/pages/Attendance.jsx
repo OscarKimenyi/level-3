@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Table,
   Button,
@@ -11,115 +11,127 @@ import {
   Badge,
   Modal,
   Dropdown,
-  DropdownButton,
 } from "react-bootstrap";
+import { useNavigate } from "react-router-dom";
 import useAuth from "../context/useAuth";
-import useSocket from "../context/useSocket";
-import axios from "axios";
-import { formatDate } from "../utils/helpers";
+import api from "../services/api";
 
 const Attendance = () => {
   const { user } = useAuth();
-  const { socket } = useSocket();
+  const navigate = useNavigate();
 
+  // State management
   const [courses, setCourses] = useState([]);
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [students, setStudents] = useState([]);
   const [attendance, setAttendance] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+
+  // Modal states
   const [showReportModal, setShowReportModal] = useState(false);
+  const [reportData, setReportData] = useState(null);
 
-  useEffect(() => {
-    if (user?.role === "teacher") {
-      fetchTeacherCourses();
-    } else if (user?.role === "admin") {
-      fetchAllCourses();
-    }
-  }, [user]);
-
-  useEffect(() => {
-    if (selectedCourse && date) {
-      fetchCourseStudents();
-      fetchAttendanceData();
-    }
-  }, [selectedCourse, date, fetchCourseStudents, fetchAttendanceData]);
-
-  const fetchTeacherCourses = async () => {
+  // Fetch courses based on user role
+  const fetchCourses = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await axios.get("/courses/my-courses");
-      setCourses(response.data.data);
-      if (response.data.data.length > 0) {
+      let response;
+
+      if (user?.role === "teacher") {
+        response = await api.get("/courses/my-courses");
+      } else if (user?.role === "admin") {
+        response = await api.get("/courses");
+      } else {
+        setCourses([]);
+        setLoading(false);
+        return;
+      }
+
+      setCourses(response.data.data || []);
+      if (response.data.data?.length > 0 && !selectedCourse) {
         setSelectedCourse(response.data.data[0]);
       }
-    } catch (error) {
-      console.error("Error fetching courses:", error);
+      setError("");
+    } catch (err) {
+      console.error("Error fetching courses:", err);
       setError("Failed to load courses");
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.role, selectedCourse]);
 
-  const fetchAllCourses = async () => {
+  useEffect(() => {
+    if (user?.role === "admin" || user?.role === "teacher") {
+      fetchCourses();
+    } else {
+      setLoading(false);
+      setError("You do not have permission to view attendance");
+    }
+  }, [fetchCourses, user?.role]);
+
+  // Fetch course students and attendance
+  const fetchAttendanceData = useCallback(async () => {
+    if (!selectedCourse) return;
+
     try {
       setLoading(true);
-      const response = await axios.get("/courses");
-      setCourses(response.data.data);
-      if (response.data.data.length > 0) {
-        setSelectedCourse(response.data.data[0]);
-      }
-    } catch (error) {
-      console.error("Error fetching courses:", error);
-      setError("Failed to load courses");
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const fetchCourseStudents = async () => {
-    try {
-      const response = await axios.get(
+      // Fetch students in the course
+      const studentsRes = await api.get(
         `/courses/${selectedCourse._id}/students`,
       );
-      setStudents(response.data.data);
+      const studentsList = studentsRes.data.data || [];
+      setStudents(studentsList);
 
-      // Initialize attendance status for each student
-      const initialAttendance = response.data.data.map((student) => ({
+      // Initialize attendance
+      let attendanceList = studentsList.map((student) => ({
         studentId: student._id,
         studentName: `${student.firstName} ${student.lastName}`,
+        studentIdNumber: student.studentId,
         status: "present",
       }));
-      setAttendance(initialAttendance);
-    } catch (error) {
-      console.error("Error fetching students:", error);
-    }
-  };
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const fetchAttendanceData = async () => {
-    try {
-      const response = await axios.get(
-        `/attendance/course/${selectedCourse._id}?date=${date}`,
-      );
-      if (response.data.data && response.data.data.length > 0) {
-        // Update attendance status based on existing data
-        const updatedAttendance = attendance.map((item) => {
-          const existing = response.data.data.find(
-            (a) => a.student === item.studentId,
-          );
-          return existing ? { ...item, status: existing.status } : item;
-        });
-        setAttendance(updatedAttendance);
+      // Fetch existing attendance for this date
+      try {
+        const attendanceRes = await api.get(
+          `/attendance/course/${selectedCourse._id}?date=${date}`,
+        );
+        if (attendanceRes.data.data && attendanceRes.data.data.length > 0) {
+          attendanceList = attendanceList.map((item) => {
+            const existing = attendanceRes.data.data.find(
+              (a) => a.student === item.studentId,
+            );
+            return existing ? { ...item, status: existing.status } : item;
+          });
+        }
+      } catch {
+        console.log("No existing attendance for this date");
       }
-    } catch (error) {
-      console.error("Error fetching attendance:", error);
-    }
-  };
 
+      setAttendance(attendanceList);
+      setError("");
+    } catch (err) {
+      console.error("Error fetching attendance data:", err);
+      setError("Failed to load attendance data");
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedCourse, date]);
+
+  useEffect(() => {
+    if (
+      selectedCourse &&
+      (user?.role === "admin" || user?.role === "teacher")
+    ) {
+      fetchAttendanceData();
+    }
+  }, [selectedCourse, date, fetchAttendanceData, user?.role]);
+
+  // Handle status change
   const handleStatusChange = (studentId, status) => {
     setAttendance((prev) =>
       prev.map((item) =>
@@ -128,59 +140,108 @@ const Attendance = () => {
     );
   };
 
+  // Handle submit attendance
   const handleSubmitAttendance = async () => {
+    if (!selectedCourse || students.length === 0) {
+      setError("No students to mark attendance for");
+      return;
+    }
+
+    // Validate that all students have a status
+    const invalidRecords = attendance.filter((a) => !a.status);
+    if (invalidRecords.length > 0) {
+      setError("All students must have a status selected");
+      return;
+    }
+
     try {
+      setSubmitting(true);
+      setError("");
+
       const attendanceData = {
         course: selectedCourse._id,
-        date: new Date(date),
+        date: new Date(date).toISOString(),
         records: attendance.map((item) => ({
           student: item.studentId,
           status: item.status,
         })),
       };
 
-      await axios.post("/attendance/mark", attendanceData);
+      console.log("Submitting attendance:", attendanceData); // For debugging
 
-      // Emit WebSocket event for real-time update
-      if (socket) {
-        socket.emit("attendance_updated", {
-          courseId: selectedCourse._id,
-          date: date,
-        });
+      const response = await api.post("/attendance/mark", attendanceData);
+
+      if (response.data.success) {
+        setSuccess("Attendance marked successfully");
+        setTimeout(() => setSuccess(""), 3000);
       }
-
-      setSuccess("Attendance marked successfully");
-
-      // Show success message for 3 seconds
-      setTimeout(() => setSuccess(""), 3000);
-    } catch {
-      setError("Failed to mark attendance");
+    } catch (err) {
+      console.error("Error marking attendance:", err);
+      const errorMessage =
+        err.response?.data?.message || "Failed to mark attendance";
+      setError(errorMessage);
+    } finally {
+      setSubmitting(false);
     }
   };
-
+  // Handle bulk action
   const handleBulkAction = (status) => {
     setAttendance((prev) => prev.map((item) => ({ ...item, status })));
   };
 
-  const getStatusBadge = (status) => {
-    const statusConfig = {
-      present: { color: "success", icon: "bi-check-circle" },
-      absent: { color: "danger", icon: "bi-x-circle" },
-      late: { color: "warning", icon: "bi-clock" },
-      excused: { color: "info", icon: "bi-info-circle" },
+  // Generate report
+  const generateReport = () => {
+    const summary = {
+      present: attendance.filter((a) => a.status === "present").length,
+      absent: attendance.filter((a) => a.status === "absent").length,
+      late: attendance.filter((a) => a.status === "late").length,
+      excused: attendance.filter((a) => a.status === "excused").length,
+      total: attendance.length,
     };
 
-    const config = statusConfig[status] || statusConfig.present;
+    summary.percentage =
+      summary.total > 0
+        ? (((summary.present + summary.late) / summary.total) * 100).toFixed(1)
+        : 0;
+
+    setReportData(summary);
+    setShowReportModal(true);
+  };
+
+  // Get status badge
+  const getStatusBadge = (status) => {
+    const config = {
+      present: { bg: "success", icon: "bi-check-circle", label: "Present" },
+      absent: { bg: "danger", icon: "bi-x-circle", label: "Absent" },
+      late: { bg: "warning", icon: "bi-clock", label: "Late" },
+      excused: { bg: "info", icon: "bi-info-circle", label: "Excused" },
+    };
+    const { bg, icon, label } = config[status] || config.present;
 
     return (
-      <Badge bg={config.color} className="d-flex align-items-center">
-        <i className={`bi ${config.icon} me-1`}></i>
-        {status.charAt(0).toUpperCase() + status.slice(1)}
+      <Badge bg={bg}>
+        <i className={`bi ${icon} me-1`}></i>
+        {label}
       </Badge>
     );
   };
 
-  if (loading) {
+  // Check permissions
+  const canManageAttendance =
+    user?.role === "admin" || user?.role === "teacher";
+
+  if (!canManageAttendance) {
+    return (
+      <div className="container-fluid py-3">
+        <Alert variant="warning">
+          <i className="bi bi-exclamation-triangle me-2"></i>
+          You do not have permission to view attendance.
+        </Alert>
+      </div>
+    );
+  }
+
+  if (loading && !courses.length) {
     return (
       <div className="text-center py-5">
         <Spinner animation="border" variant="primary" />
@@ -196,6 +257,7 @@ const Attendance = () => {
         Attendance Management
       </h2>
 
+      {/* Alerts */}
       {error && (
         <Alert variant="danger" onClose={() => setError("")} dismissible>
           {error}
@@ -208,6 +270,7 @@ const Attendance = () => {
         </Alert>
       )}
 
+      {/* Controls Card */}
       <Card className="shadow-sm mb-4">
         <Card.Body>
           <Row className="g-3">
@@ -223,6 +286,7 @@ const Attendance = () => {
                     setSelectedCourse(course);
                   }}
                 >
+                  <option value="">Choose a course...</option>
                   {courses.map((course) => (
                     <option key={course._id} value={course._id}>
                       {course.courseCode} - {course.courseName}
@@ -239,6 +303,7 @@ const Attendance = () => {
                   type="date"
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
+                  max={new Date().toISOString().split("T")[0]}
                 />
               </Form.Group>
             </Col>
@@ -249,27 +314,50 @@ const Attendance = () => {
                   <Button
                     variant="primary"
                     onClick={handleSubmitAttendance}
-                    disabled={!selectedCourse || students.length === 0}
+                    disabled={
+                      !selectedCourse || students.length === 0 || submitting
+                    }
                   >
-                    <i className="bi bi-save me-2"></i>
-                    Save Attendance
+                    {submitting ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-2"></span>
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <i className="bi bi-save me-2"></i>
+                        Save Attendance
+                      </>
+                    )}
                   </Button>
 
-                  <DropdownButton variant="secondary" title="Bulk Actions">
-                    <Dropdown.Item onClick={() => handleBulkAction("present")}>
-                      Mark All Present
-                    </Dropdown.Item>
-                    <Dropdown.Item onClick={() => handleBulkAction("absent")}>
-                      Mark All Absent
-                    </Dropdown.Item>
-                    <Dropdown.Item onClick={() => handleBulkAction("late")}>
-                      Mark All Late
-                    </Dropdown.Item>
-                    <Dropdown.Divider />
-                    <Dropdown.Item onClick={() => setShowReportModal(true)}>
-                      Generate Report
-                    </Dropdown.Item>
-                  </DropdownButton>
+                  <Dropdown>
+                    <Dropdown.Toggle variant="secondary">
+                      <i className="bi bi-list me-2"></i>
+                      Bulk Actions
+                    </Dropdown.Toggle>
+                    <Dropdown.Menu>
+                      <Dropdown.Item
+                        onClick={() => handleBulkAction("present")}
+                      >
+                        <i className="bi bi-check-circle text-success me-2"></i>
+                        Mark All Present
+                      </Dropdown.Item>
+                      <Dropdown.Item onClick={() => handleBulkAction("absent")}>
+                        <i className="bi bi-x-circle text-danger me-2"></i>
+                        Mark All Absent
+                      </Dropdown.Item>
+                      <Dropdown.Item onClick={() => handleBulkAction("late")}>
+                        <i className="bi bi-clock text-warning me-2"></i>
+                        Mark All Late
+                      </Dropdown.Item>
+                      <Dropdown.Divider />
+                      <Dropdown.Item onClick={generateReport}>
+                        <i className="bi bi-file-earmark-text me-2"></i>
+                        Generate Report
+                      </Dropdown.Item>
+                    </Dropdown.Menu>
+                  </Dropdown>
                 </div>
               </div>
             </Col>
@@ -277,7 +365,8 @@ const Attendance = () => {
         </Card.Body>
       </Card>
 
-      {selectedCourse && (
+      {/* Attendance Table */}
+      {selectedCourse ? (
         <Card className="shadow-sm">
           <Card.Header className="bg-light">
             <h5 className="mb-0">
@@ -289,91 +378,123 @@ const Attendance = () => {
           </Card.Header>
 
           <Card.Body>
-            <Table hover responsive>
-              <thead>
-                <tr>
-                  <th>Student ID</th>
-                  <th>Student Name</th>
-                  <th>Class</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {attendance.map((item) => (
-                  <tr key={item.studentId}>
-                    <td>
-                      {students.find((s) => s._id === item.studentId)
-                        ?.studentId || "N/A"}
-                    </td>
-                    <td>{item.studentName}</td>
-                    <td>
-                      {students.find((s) => s._id === item.studentId)
-                        ?.classGrade || "N/A"}
-                    </td>
-                    <td>
-                      <div className="d-inline-block">
-                        {getStatusBadge(item.status)}
-                      </div>
-                    </td>
-                    <td>
-                      <div className="d-flex gap-2">
-                        <Button
-                          variant={
-                            item.status === "present"
-                              ? "success"
-                              : "outline-success"
-                          }
-                          size="sm"
-                          onClick={() =>
-                            handleStatusChange(item.studentId, "present")
-                          }
-                        >
-                          Present
-                        </Button>
-                        <Button
-                          variant={
-                            item.status === "absent"
-                              ? "danger"
-                              : "outline-danger"
-                          }
-                          size="sm"
-                          onClick={() =>
-                            handleStatusChange(item.studentId, "absent")
-                          }
-                        >
-                          Absent
-                        </Button>
-                        <Button
-                          variant={
-                            item.status === "late"
-                              ? "warning"
-                              : "outline-warning"
-                          }
-                          size="sm"
-                          onClick={() =>
-                            handleStatusChange(item.studentId, "late")
-                          }
-                        >
-                          Late
-                        </Button>
-                        <Button
-                          variant={
-                            item.status === "excused" ? "info" : "outline-info"
-                          }
-                          size="sm"
-                          onClick={() =>
-                            handleStatusChange(item.studentId, "excused")
-                          }
-                        >
-                          Excused
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
+            {loading ? (
+              <div className="text-center py-4">
+                <Spinner animation="border" variant="primary" size="sm" />
+                <span className="ms-2">Loading students...</span>
+              </div>
+            ) : students.length > 0 ? (
+              <div className="table-responsive">
+                <Table hover>
+                  <thead>
+                    <tr>
+                      <th>Student ID</th>
+                      <th>Student Name</th>
+                      <th>Class</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {attendance.map((item) => (
+                      <tr key={item.studentId}>
+                        <td>{item.studentIdNumber}</td>
+                        <td>{item.studentName}</td>
+                        <td>
+                          {students.find((s) => s._id === item.studentId)
+                            ?.classGrade || "N/A"}
+                        </td>
+                        <td>{getStatusBadge(item.status)}</td>
+                        <td>
+                          <div className="d-flex gap-1">
+                            <Button
+                              size="sm"
+                              variant={
+                                item.status === "present"
+                                  ? "success"
+                                  : "outline-success"
+                              }
+                              onClick={() =>
+                                handleStatusChange(item.studentId, "present")
+                              }
+                              title="Present"
+                            >
+                              P
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant={
+                                item.status === "absent"
+                                  ? "danger"
+                                  : "outline-danger"
+                              }
+                              onClick={() =>
+                                handleStatusChange(item.studentId, "absent")
+                              }
+                              title="Absent"
+                            >
+                              A
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant={
+                                item.status === "late"
+                                  ? "warning"
+                                  : "outline-warning"
+                              }
+                              onClick={() =>
+                                handleStatusChange(item.studentId, "late")
+                              }
+                              title="Late"
+                            >
+                              L
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant={
+                                item.status === "excused"
+                                  ? "info"
+                                  : "outline-info"
+                              }
+                              onClick={() =>
+                                handleStatusChange(item.studentId, "excused")
+                              }
+                              title="Excused"
+                            >
+                              E
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
+              </div>
+            ) : (
+              <div className="text-center py-4">
+                <i className="bi bi-people display-4 d-block text-muted mb-3"></i>
+                <p className="text-muted">
+                  No students enrolled in this course
+                </p>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => navigate(`/courses/${selectedCourse._id}`)}
+                >
+                  Enroll Students
+                </Button>
+              </div>
+            )}
+          </Card.Body>
+        </Card>
+      ) : (
+        <Card className="shadow-sm">
+          <Card.Body className="text-center py-5">
+            <i className="bi bi-book display-4 d-block text-muted mb-3"></i>
+            <h5>No Course Selected</h5>
+            <p className="text-muted">
+              Please select a course to manage attendance
+            </p>
           </Card.Body>
         </Card>
       )}
@@ -388,39 +509,72 @@ const Attendance = () => {
           <Modal.Title>Attendance Report</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          {selectedCourse && (
+          {selectedCourse && reportData && (
             <div>
               <h5>
                 {selectedCourse.courseCode} - {selectedCourse.courseName}
               </h5>
-              <p>Date: {formatDate(date)}</p>
+              <p className="text-muted">
+                Date: {new Date(date).toLocaleDateString()}
+              </p>
 
-              <Table hover responsive>
-                <thead>
-                  <tr>
-                    <th>Status</th>
-                    <th>Count</th>
-                    <th>Percentage</th>
-                  </tr>
-                </thead>
+              <Row className="mb-4">
+                <Col md={3}>
+                  <Card className="text-center bg-light">
+                    <Card.Body>
+                      <h3 className="text-success">{reportData.present}</h3>
+                      <small>Present</small>
+                    </Card.Body>
+                  </Card>
+                </Col>
+                <Col md={3}>
+                  <Card className="text-center bg-light">
+                    <Card.Body>
+                      <h3 className="text-danger">{reportData.absent}</h3>
+                      <small>Absent</small>
+                    </Card.Body>
+                  </Card>
+                </Col>
+                <Col md={3}>
+                  <Card className="text-center bg-light">
+                    <Card.Body>
+                      <h3 className="text-warning">{reportData.late}</h3>
+                      <small>Late</small>
+                    </Card.Body>
+                  </Card>
+                </Col>
+                <Col md={3}>
+                  <Card className="text-center bg-light">
+                    <Card.Body>
+                      <h3 className="text-info">{reportData.excused}</h3>
+                      <small>Excused</small>
+                    </Card.Body>
+                  </Card>
+                </Col>
+              </Row>
+
+              <Table striped bordered>
                 <tbody>
-                  {["present", "absent", "late", "excused"].map((status) => {
-                    const count = attendance.filter(
-                      (a) => a.status === status,
-                    ).length;
-                    const percentage =
-                      students.length > 0
-                        ? ((count / students.length) * 100).toFixed(1)
-                        : 0;
-
-                    return (
-                      <tr key={status}>
-                        <td>{getStatusBadge(status)}</td>
-                        <td>{count}</td>
-                        <td>{percentage}%</td>
-                      </tr>
-                    );
-                  })}
+                  <tr>
+                    <th>Total Students</th>
+                    <td>{reportData.total}</td>
+                  </tr>
+                  <tr>
+                    <th>Attendance Rate</th>
+                    <td>
+                      <Badge
+                        bg={
+                          reportData.percentage >= 90
+                            ? "success"
+                            : reportData.percentage >= 75
+                              ? "warning"
+                              : "danger"
+                        }
+                      >
+                        {reportData.percentage}%
+                      </Badge>
+                    </td>
+                  </tr>
                 </tbody>
               </Table>
             </div>
@@ -430,9 +584,9 @@ const Attendance = () => {
           <Button variant="secondary" onClick={() => setShowReportModal(false)}>
             Close
           </Button>
-          <Button variant="primary">
-            <i className="bi bi-download me-2"></i>
-            Download Report
+          <Button variant="primary" onClick={() => window.print()}>
+            <i className="bi bi-printer me-2"></i>
+            Print Report
           </Button>
         </Modal.Footer>
       </Modal>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Table,
   Button,
@@ -13,73 +13,192 @@ import {
   Badge,
   Pagination,
 } from "react-bootstrap";
-import { useNavigate } from "react-router-dom";
-import axios from "axios";
+//import { useNavigate } from "react-router-dom";
+import useAuth from "../context/useAuth";
+import api from "../services/api";
 
 const Students = () => {
+  const { user } = useAuth();
+  //const navigate = useNavigate();
+
+  // State management
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [selectedStudent, setSelectedStudent] = useState(null);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  // Modal states
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Form state
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
     email: "",
     phone: "",
     classGrade: "",
-    section: "",
     gender: "Male",
     dateOfBirth: "",
+    address: "",
+    emergencyContact: {
+      name: "",
+      phone: "",
+      relationship: "",
+    },
   });
 
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    fetchStudents();
-  }, [fetchStudents, page, search]);
-
-  // eslint-disable-next-line react-hooks/exhaustive-deps, no-undef
+  // Fetch students
   const fetchStudents = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await axios.get(
+      const response = await api.get(
         `/students?page=${page}&limit=10&search=${search}`,
       );
-      setStudents(response.data.data);
+      setStudents(response.data.data || []);
       setTotalPages(response.data.pagination?.pages || 1);
-    } catch (error) {
-      console.error("Error fetching students:", error);
-      setError("Failed to load students");
+      setError("");
+    } catch (err) {
+      console.error("Error fetching students:", err);
+      if (err.response?.status === 403) {
+        setError("You do not have permission to view students");
+      } else {
+        setError("Failed to load students");
+      }
     } finally {
       setLoading(false);
     }
-  });
+  }, [page, search]);
 
+  useEffect(() => {
+    if (user?.role === "admin" || user?.role === "teacher") {
+      fetchStudents();
+    }
+  }, [fetchStudents, user?.role]);
+
+  // Handle search
   const handleSearch = (e) => {
     e.preventDefault();
     setPage(1);
     fetchStudents();
   };
 
+  // Handle add student
   const handleAddStudent = async () => {
     try {
-      // First create user account
-      const userResponse = await axios.post("/auth/register", {
-        username: formData.email.split("@")[0],
+      setSubmitting(true);
+      setError("");
+
+      // Validate required fields
+      if (
+        !formData.firstName ||
+        !formData.lastName ||
+        !formData.email ||
+        !formData.phone
+      ) {
+        setError("Please fill in all required fields");
+        setSubmitting(false);
+        return;
+      }
+
+      if (!formData.classGrade) {
+        setError("Please select year of study");
+        setSubmitting(false);
+        return;
+      }
+
+      // Create unique username
+      const baseUsername = formData.email.split("@")[0];
+      const uniqueUsername = `${baseUsername}_${Date.now()}`;
+
+      console.log("Creating user with data:", {
+        username: uniqueUsername,
         email: formData.email,
-        password: "student123", // Default password
         role: "student",
       });
 
-      // Then create student profile
-      await axios.post("/students", {
+      // Create user account FIRST
+      const userResponse = await api.post("/auth/register", {
+        username: uniqueUsername,
+        email: formData.email,
+        password: "student123",
+        role: "student",
+      });
+
+      console.log("User created:", userResponse.data);
+
+      if (!userResponse.data.success) {
+        throw new Error(userResponse.data.message || "Failed to create user");
+      }
+
+      // THEN create student profile with the userId
+      const studentData = {
         userId: userResponse.data.user.id,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        phone: formData.phone,
+        classGrade: formData.classGrade,
+        gender: formData.gender,
+        dateOfBirth: formData.dateOfBirth || new Date(),
+        address: formData.address || "",
+        emergencyContact: formData.emergencyContact,
+      };
+
+      console.log("Creating student profile with data:", studentData);
+
+      const studentResponse = await api.post("/students", studentData);
+
+      console.log("Student profile created:", studentResponse.data);
+
+      setSuccess("Student added successfully! Default password: student123");
+      setShowAddModal(false);
+      resetForm();
+      fetchStudents();
+
+      setTimeout(() => setSuccess(""), 3000);
+    } catch (err) {
+      console.error("Error adding student:", err);
+
+      // Handle specific error messages
+      if (err.response?.data?.message) {
+        if (
+          err.response.data.message.includes("already has a student profile")
+        ) {
+          setError(
+            "This email is already associated with a student. Please use a different email.",
+          );
+        } else if (
+          err.response.data.message.includes("email already registered")
+        ) {
+          setError(
+            "This email is already registered. Please use a different email.",
+          );
+        } else {
+          setError(err.response.data.message);
+        }
+      } else {
+        setError("Failed to add student. Please try again.");
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+  // Handle edit student
+  const handleEditStudent = async () => {
+    if (!selectedStudent) return;
+
+    try {
+      setSubmitting(true);
+      setError("");
+
+      await api.put(`/students/${selectedStudent._id}`, {
         firstName: formData.firstName,
         lastName: formData.lastName,
         phone: formData.phone,
@@ -87,28 +206,68 @@ const Students = () => {
         section: formData.section,
         gender: formData.gender,
         dateOfBirth: formData.dateOfBirth,
+        address: formData.address,
+        emergencyContact: formData.emergencyContact,
       });
 
-      setSuccess("Student added successfully");
-      setShowAddModal(false);
-      resetForm();
+      setSuccess("Student updated successfully");
+      setShowEditModal(false);
       fetchStudents();
-    } catch (error) {
-      setError(error.response?.data?.message || "Failed to add student");
+
+      setTimeout(() => setSuccess(""), 3000);
+    } catch (err) {
+      console.error("Error updating student:", err);
+      setError("Failed to update student");
+    } finally {
+      setSubmitting(false);
     }
   };
 
+  // Handle delete student
   const handleDeleteStudent = async () => {
+    if (!selectedStudent) return;
+
     try {
-      await axios.delete(`/students/${selectedStudent._id}`);
+      await api.delete(`/students/${selectedStudent._id}`);
       setSuccess("Student deleted successfully");
       setShowDeleteModal(false);
       fetchStudents();
-    } catch {
+
+      setTimeout(() => setSuccess(""), 3000);
+    } catch (err) {
+      console.error("Error deleting student:", err);
       setError("Failed to delete student");
     }
   };
 
+  // Open edit modal
+  const openEditModal = (student) => {
+    setSelectedStudent(student);
+    setFormData({
+      firstName: student.firstName || "",
+      lastName: student.lastName || "",
+      email: student.userId?.email || "",
+      phone: student.phone || "",
+      classGrade: student.classGrade || "",
+      gender: student.gender || "Male",
+      dateOfBirth: student.dateOfBirth ? student.dateOfBirth.split("T")[0] : "",
+      address: student.address || "",
+      emergencyContact: student.emergencyContact || {
+        name: "",
+        phone: "",
+        relationship: "",
+      },
+    });
+    setShowEditModal(true);
+  };
+
+  // Open view modal
+  const openViewModal = (student) => {
+    setSelectedStudent(student);
+    setShowViewModal(true);
+  };
+
+  // Reset form
   const resetForm = () => {
     setFormData({
       firstName: "",
@@ -116,12 +275,18 @@ const Students = () => {
       email: "",
       phone: "",
       classGrade: "",
-      section: "",
       gender: "Male",
       dateOfBirth: "",
+      address: "",
+      emergencyContact: {
+        name: "",
+        phone: "",
+        relationship: "",
+      },
     });
   };
 
+  // Get status badge
   const getStatusBadge = (status) => {
     const statusMap = {
       active: "success",
@@ -129,19 +294,46 @@ const Students = () => {
       graduated: "info",
       transferred: "warning",
     };
-    return <Badge bg={statusMap[status] || "secondary"}>{status}</Badge>;
+    return (
+      <Badge bg={statusMap[status] || "secondary"}>{status || "active"}</Badge>
+    );
   };
+
+  // Format date
+  const formatDate = (dateString) => {
+    if (!dateString) return "N/A";
+    return new Date(dateString).toLocaleDateString();
+  };
+
+  // Check if user can edit/delete
+  const canManage = user?.role === "admin";
+
+  if (loading && !students.length) {
+    return (
+      <div className="text-center py-5">
+        <Spinner animation="border" variant="primary" />
+        <p className="mt-3">Loading students...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="container-fluid py-3">
+      {/* Header */}
       <div className="d-flex justify-content-between align-items-center mb-4">
-        <h2>Student Management</h2>
-        <Button variant="primary" onClick={() => setShowAddModal(true)}>
-          <i className="bi bi-plus-circle me-2"></i>
-          Add New Student
-        </Button>
+        <h2>
+          <i className="bi bi-people me-2"></i>
+          Student Management
+        </h2>
+        {canManage && (
+          <Button variant="primary" onClick={() => setShowAddModal(true)}>
+            <i className="bi bi-plus-circle me-2"></i>
+            Add New Student
+          </Button>
+        )}
       </div>
 
+      {/* Alerts */}
       {error && (
         <Alert variant="danger" onClose={() => setError("")} dismissible>
           {error}
@@ -154,6 +346,7 @@ const Students = () => {
         </Alert>
       )}
 
+      {/* Search Bar */}
       <Card className="shadow-sm mb-4">
         <Card.Body>
           <Form onSubmit={handleSearch}>
@@ -185,54 +378,56 @@ const Students = () => {
         </Card.Body>
       </Card>
 
+      {/* Students Table */}
       <Card className="shadow-sm">
         <Card.Body>
-          {loading ? (
-            <div className="text-center py-5">
-              <Spinner animation="border" variant="primary" />
-              <p className="mt-3">Loading students...</p>
-            </div>
-          ) : (
-            <>
-              <Table hover responsive>
-                <thead>
-                  <tr>
-                    <th>Student ID</th>
-                    <th>Name</th>
-                    <th>Class</th>
-                    <th>Contact</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {students.map((student) => (
-                    <tr key={student._id}>
-                      <td>{student.studentId}</td>
-                      <td>
-                        {student.firstName} {student.lastName}
-                      </td>
-                      <td>
-                        {student.classGrade} - {student.section}
-                      </td>
-                      <td>{student.phone}</td>
-                      <td>{getStatusBadge(student.status)}</td>
-                      <td>
-                        <Button
-                          variant="outline-primary"
-                          size="sm"
-                          className="me-2"
-                          onClick={() => navigate(`/students/${student._id}`)}
-                        >
-                          <i className="bi bi-eye"></i>
-                        </Button>
+          <Table hover responsive>
+            <thead>
+              <tr>
+                <th>Student ID</th>
+                <th>Name</th>
+                <th>Year of Study</th>
+                <th>Contact</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {students.map((student) => (
+                <tr key={student._id}>
+                  <td>
+                    <strong>{student.studentId}</strong>
+                  </td>
+                  <td>
+                    {student.firstName} {student.lastName}
+                  </td>
+                  <td>{student.classGrade || "N/A"}</td>
+                  <td>
+                    <div>{student.phone}</div>
+                    <small className="text-muted">
+                      {student.userId?.email}
+                    </small>
+                  </td>
+                  <td>{getStatusBadge(student.status)}</td>
+                  <td>
+                    <Button
+                      variant="outline-info"
+                      size="sm"
+                      className="me-2"
+                      onClick={() => openViewModal(student)}
+                      title="View Details"
+                    >
+                      <i className="bi bi-eye"></i>
+                    </Button>
+
+                    {canManage && (
+                      <>
                         <Button
                           variant="outline-warning"
                           size="sm"
                           className="me-2"
-                          onClick={() => {
-                            // Implement edit functionality
-                          }}
+                          onClick={() => openEditModal(student)}
+                          title="Edit"
                         >
                           <i className="bi bi-pencil"></i>
                         </Button>
@@ -243,48 +438,59 @@ const Students = () => {
                             setSelectedStudent(student);
                             setShowDeleteModal(true);
                           }}
+                          title="Delete"
                         >
                           <i className="bi bi-trash"></i>
                         </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </Table>
+                      </>
+                    )}
+                  </td>
+                </tr>
+              ))}
 
-              {students.length === 0 && (
-                <div className="text-center py-5">
-                  <i className="bi bi-people display-1 text-muted"></i>
-                  <p className="mt-3">No students found</p>
-                </div>
-              )}
-
-              {totalPages > 1 && (
-                <div className="d-flex justify-content-center">
-                  <Pagination>
-                    <Pagination.Prev
-                      onClick={() => setPage((p) => Math.max(1, p - 1))}
-                      disabled={page === 1}
-                    />
-                    {[...Array(totalPages).keys()].map((p) => (
-                      <Pagination.Item
-                        key={p + 1}
-                        active={p + 1 === page}
-                        onClick={() => setPage(p + 1)}
+              {students.length === 0 && !loading && (
+                <tr>
+                  <td colSpan="6" className="text-center py-4">
+                    <i className="bi bi-people display-4 d-block text-muted mb-3"></i>
+                    <p className="text-muted">No students found</p>
+                    {canManage && (
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={() => setShowAddModal(true)}
                       >
-                        {p + 1}
-                      </Pagination.Item>
-                    ))}
-                    <Pagination.Next
-                      onClick={() =>
-                        setPage((p) => Math.min(totalPages, p + 1))
-                      }
-                      disabled={page === totalPages}
-                    />
-                  </Pagination>
-                </div>
+                        Add your first student
+                      </Button>
+                    )}
+                  </td>
+                </tr>
               )}
-            </>
+            </tbody>
+          </Table>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="d-flex justify-content-center mt-3">
+              <Pagination>
+                <Pagination.Prev
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                />
+                {[...Array(totalPages).keys()].map((p) => (
+                  <Pagination.Item
+                    key={p + 1}
+                    active={p + 1 === page}
+                    onClick={() => setPage(p + 1)}
+                  >
+                    {p + 1}
+                  </Pagination.Item>
+                ))}
+                <Pagination.Next
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages}
+                />
+              </Pagination>
+            </div>
           )}
         </Card.Body>
       </Card>
@@ -303,7 +509,7 @@ const Students = () => {
             <Row>
               <Col md={6}>
                 <Form.Group className="mb-3">
-                  <Form.Label>First Name</Form.Label>
+                  <Form.Label>First Name *</Form.Label>
                   <Form.Control
                     type="text"
                     value={formData.firstName}
@@ -316,7 +522,226 @@ const Students = () => {
               </Col>
               <Col md={6}>
                 <Form.Group className="mb-3">
-                  <Form.Label>Last Name</Form.Label>
+                  <Form.Label>Last Name *</Form.Label>
+                  <Form.Control
+                    type="text"
+                    value={formData.lastName}
+                    onChange={(e) =>
+                      setFormData({ ...formData, lastName: e.target.value })
+                    }
+                    required
+                  />
+                </Form.Group>
+              </Col>
+            </Row>
+
+            <Row>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Email *</Form.Label>
+                  <Form.Control
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) =>
+                      setFormData({ ...formData, email: e.target.value })
+                    }
+                    required
+                  />
+                </Form.Group>
+              </Col>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Phone *</Form.Label>
+                  <Form.Control
+                    type="tel"
+                    value={formData.phone}
+                    onChange={(e) =>
+                      setFormData({ ...formData, phone: e.target.value })
+                    }
+                    required
+                  />
+                </Form.Group>
+              </Col>
+            </Row>
+
+            <Row>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Year of Study *</Form.Label>
+                  <Form.Select
+                    value={formData.classGrade}
+                    onChange={(e) =>
+                      setFormData({ ...formData, classGrade: e.target.value })
+                    }
+                    required
+                  >
+                    <option value="">Select Year</option>
+                    <option value="First Year">First Year</option>
+                    <option value="Second Year">Second Year</option>
+                    <option value="Third Year">Third Year</option>
+                    <option value="Fourth Year">Fourth Year</option>
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+
+              <Col md={4}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Gender</Form.Label>
+                  <Form.Select
+                    value={formData.gender}
+                    onChange={(e) =>
+                      setFormData({ ...formData, gender: e.target.value })
+                    }
+                  >
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+            </Row>
+
+            <Row>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Date of Birth</Form.Label>
+                  <Form.Control
+                    type="date"
+                    value={formData.dateOfBirth}
+                    onChange={(e) =>
+                      setFormData({ ...formData, dateOfBirth: e.target.value })
+                    }
+                  />
+                </Form.Group>
+              </Col>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Address</Form.Label>
+                  <Form.Control
+                    type="text"
+                    value={formData.address}
+                    onChange={(e) =>
+                      setFormData({ ...formData, address: e.target.value })
+                    }
+                    placeholder="Optional"
+                  />
+                </Form.Group>
+              </Col>
+            </Row>
+
+            <h6 className="mt-3 mb-2">Emergency Contact</h6>
+            <Row>
+              <Col md={4}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Name</Form.Label>
+                  <Form.Control
+                    type="text"
+                    value={formData.emergencyContact.name}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        emergencyContact: {
+                          ...formData.emergencyContact,
+                          name: e.target.value,
+                        },
+                      })
+                    }
+                  />
+                </Form.Group>
+              </Col>
+              <Col md={4}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Phone</Form.Label>
+                  <Form.Control
+                    type="tel"
+                    value={formData.emergencyContact.phone}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        emergencyContact: {
+                          ...formData.emergencyContact,
+                          phone: e.target.value,
+                        },
+                      })
+                    }
+                  />
+                </Form.Group>
+              </Col>
+              <Col md={4}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Relationship</Form.Label>
+                  <Form.Control
+                    type="text"
+                    value={formData.emergencyContact.relationship}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        emergencyContact: {
+                          ...formData.emergencyContact,
+                          relationship: e.target.value,
+                        },
+                      })
+                    }
+                  />
+                </Form.Group>
+              </Col>
+            </Row>
+
+            <Alert variant="info" className="mb-0">
+              <i className="bi bi-info-circle me-2"></i>
+              Default password will be: <strong>student123</strong>
+            </Alert>
+          </Form>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowAddModal(false)}>
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            onClick={handleAddStudent}
+            disabled={submitting}
+          >
+            {submitting ? (
+              <>
+                <span className="spinner-border spinner-border-sm me-2"></span>
+                Adding...
+              </>
+            ) : (
+              "Add Student"
+            )}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Edit Student Modal */}
+      <Modal
+        show={showEditModal}
+        onHide={() => setShowEditModal(false)}
+        size="lg"
+      >
+        <Modal.Header closeButton>
+          <Modal.Title>Edit Student</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Form>
+            <Row>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>First Name *</Form.Label>
+                  <Form.Control
+                    type="text"
+                    value={formData.firstName}
+                    onChange={(e) =>
+                      setFormData({ ...formData, firstName: e.target.value })
+                    }
+                    required
+                  />
+                </Form.Group>
+              </Col>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Last Name *</Form.Label>
                   <Form.Control
                     type="text"
                     value={formData.lastName}
@@ -333,19 +758,15 @@ const Students = () => {
               <Col md={6}>
                 <Form.Group className="mb-3">
                   <Form.Label>Email</Form.Label>
-                  <Form.Control
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) =>
-                      setFormData({ ...formData, email: e.target.value })
-                    }
-                    required
-                  />
+                  <Form.Control type="email" value={formData.email} disabled />
+                  <Form.Text className="text-muted">
+                    Email cannot be changed
+                  </Form.Text>
                 </Form.Group>
               </Col>
               <Col md={6}>
                 <Form.Group className="mb-3">
-                  <Form.Label>Phone</Form.Label>
+                  <Form.Label>Phone *</Form.Label>
                   <Form.Control
                     type="tel"
                     value={formData.phone}
@@ -359,21 +780,25 @@ const Students = () => {
             </Row>
 
             <Row>
-              <Col md={6}>
+              <Col md={4}>
                 <Form.Group className="mb-3">
-                  <Form.Label>Class/Grade</Form.Label>
-                  <Form.Control
+                  <Form.Label>Year of Study</Form.Label>
+                  <Form.Select
                     type="text"
                     value={formData.classGrade}
                     onChange={(e) =>
                       setFormData({ ...formData, classGrade: e.target.value })
                     }
-                    placeholder="e.g., Grade 10"
-                    required
-                  />
+                  >
+                    <option value="">Select Year</option>
+                    <option value="First Year">First Year</option>
+                    <option value="Second Year">Second Year</option>
+                    <option value="Third Year">Third Year</option>
+                    <option value="Fourth Year">Fourth Year</option>
+                  </Form.Select>
                 </Form.Group>
               </Col>
-              <Col md={6}>
+              {/* <Col md={4}>
                 <Form.Group className="mb-3">
                   <Form.Label>Section</Form.Label>
                   <Form.Control
@@ -382,15 +807,10 @@ const Students = () => {
                     onChange={(e) =>
                       setFormData({ ...formData, section: e.target.value })
                     }
-                    placeholder="e.g., A"
-                    required
                   />
                 </Form.Group>
-              </Col>
-            </Row>
-
-            <Row>
-              <Col md={6}>
+              </Col> */}
+              <Col md={4}>
                 <Form.Group className="mb-3">
                   <Form.Label>Gender</Form.Label>
                   <Form.Select
@@ -405,29 +825,137 @@ const Students = () => {
                   </Form.Select>
                 </Form.Group>
               </Col>
-              <Col md={6}>
-                <Form.Group className="mb-3">
-                  <Form.Label>Date of Birth</Form.Label>
-                  <Form.Control
-                    type="date"
-                    value={formData.dateOfBirth}
-                    onChange={(e) =>
-                      setFormData({ ...formData, dateOfBirth: e.target.value })
-                    }
-                    required
-                  />
-                </Form.Group>
-              </Col>
             </Row>
           </Form>
         </Modal.Body>
         <Modal.Footer>
-          <Button variant="secondary" onClick={() => setShowAddModal(false)}>
+          <Button variant="secondary" onClick={() => setShowEditModal(false)}>
             Cancel
           </Button>
-          <Button variant="primary" onClick={handleAddStudent}>
-            Add Student
+          <Button
+            variant="primary"
+            onClick={handleEditStudent}
+            disabled={submitting}
+          >
+            {submitting ? (
+              <>
+                <span className="spinner-border spinner-border-sm me-2"></span>
+                Saving...
+              </>
+            ) : (
+              "Save Changes"
+            )}
           </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* View Student Modal */}
+      <Modal
+        show={showViewModal}
+        onHide={() => setShowViewModal(false)}
+        size="lg"
+      >
+        <Modal.Header closeButton>
+          <Modal.Title>Student Details</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {selectedStudent && (
+            <div>
+              <div className="text-center mb-4">
+                <div
+                  className="bg-primary text-white rounded-circle d-inline-flex align-items-center justify-content-center"
+                  style={{ width: "80px", height: "80px", fontSize: "2rem" }}
+                >
+                  {selectedStudent.firstName?.[0]}
+                  {selectedStudent.lastName?.[0]}
+                </div>
+                <h4 className="mt-2">
+                  {selectedStudent.firstName} {selectedStudent.lastName}
+                </h4>
+                <p className="text-muted">{selectedStudent.studentId}</p>
+                {getStatusBadge(selectedStudent.status)}
+              </div>
+
+              <Row>
+                <Col md={6}>
+                  <h6>Personal Information</h6>
+                  <table className="table table-sm">
+                    <tbody>
+                      <tr>
+                        <th>Email:</th>
+                        <td>{selectedStudent.userId?.email}</td>
+                      </tr>
+                      <tr>
+                        <th>Phone:</th>
+                        <td>{selectedStudent.phone}</td>
+                      </tr>
+                      <tr>
+                        <th>Date of Birth:</th>
+                        <td>{formatDate(selectedStudent.dateOfBirth)}</td>
+                      </tr>
+                      <tr>
+                        <th>Gender:</th>
+                        <td>{selectedStudent.gender}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </Col>
+                <Col md={6}>
+                  <h6>Academic Information</h6>
+                  <table className="table table-sm">
+                    <tbody>
+                      <tr>
+                        <th>Year of Study:</th>
+                        <td>{selectedStudent.classGrade || "N/A"}</td>
+                      </tr>
+                      <tr>
+                        <th>Enrollment Date:</th>
+                        <td>{formatDate(selectedStudent.enrollmentDate)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </Col>
+              </Row>
+
+              {selectedStudent.emergencyContact?.name && (
+                <>
+                  <h6 className="mt-3">Emergency Contact</h6>
+                  <table className="table table-sm">
+                    <tbody>
+                      <tr>
+                        <th>Name:</th>
+                        <td>{selectedStudent.emergencyContact.name}</td>
+                      </tr>
+                      <tr>
+                        <th>Phone:</th>
+                        <td>{selectedStudent.emergencyContact.phone}</td>
+                      </tr>
+                      <tr>
+                        <th>Relationship:</th>
+                        <td>{selectedStudent.emergencyContact.relationship}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </>
+              )}
+            </div>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowViewModal(false)}>
+            Close
+          </Button>
+          {canManage && (
+            <Button
+              variant="primary"
+              onClick={() => {
+                setShowViewModal(false);
+                openEditModal(selectedStudent);
+              }}
+            >
+              Edit Student
+            </Button>
+          )}
         </Modal.Footer>
       </Modal>
 
@@ -437,15 +965,20 @@ const Students = () => {
           <Modal.Title>Confirm Delete</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          Are you sure you want to delete {selectedStudent?.firstName}{" "}
-          {selectedStudent?.lastName}? This action cannot be undone.
+          Are you sure you want to delete{" "}
+          <strong>
+            {selectedStudent?.firstName} {selectedStudent?.lastName}
+          </strong>
+          ?
+          <br />
+          <span className="text-danger">This action cannot be undone.</span>
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setShowDeleteModal(false)}>
             Cancel
           </Button>
           <Button variant="danger" onClick={handleDeleteStudent}>
-            Delete
+            Delete Student
           </Button>
         </Modal.Footer>
       </Modal>

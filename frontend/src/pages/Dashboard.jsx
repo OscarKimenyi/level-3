@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Card,
   Row,
@@ -11,6 +11,7 @@ import {
   Modal,
   Form,
   Alert,
+  ListGroup,
 } from "react-bootstrap";
 import useAuth from "../context/useAuth";
 import api from "../services/api";
@@ -71,7 +72,16 @@ const Dashboard = () => {
     credits: 3,
     teacher: "",
     semester: "Fall 2024",
-    academicYear: "2023-2024",
+    academicYear: "2024-2025",
+    maxStudents: 30,
+    schedule: [
+      {
+        day: "Monday",
+        startTime: "09:00",
+        endTime: "10:30",
+        room: "",
+      },
+    ],
   });
 
   const [notificationForm, setNotificationForm] = useState({
@@ -86,80 +96,120 @@ const Dashboard = () => {
   const [success, setSuccess] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    fetchDashboardData();
-    if (user?.role === "admin") {
-      fetchTeachers();
-    }
-  }, [user]);
-
-  const fetchDashboardData = async () => {
+  // Wrap fetchDashboardData in useCallback
+  const fetchDashboardData = useCallback(async () => {
     try {
-      const [studentsRes, coursesRes, teachersRes] = await Promise.all([
-        api.get("/students?limit=5"),
-        api.get("/courses?limit=5"),
-        api.get("/teachers?limit=5"),
-      ]);
+      setLoading(true);
 
-      setStats({
-        totalStudents: studentsRes.data.pagination?.total || 0,
-        totalCourses: coursesRes.data.pagination?.total || 0,
-        totalTeachers: teachersRes.data.pagination?.total || 0,
-        recentStudents: studentsRes.data.data || [],
-        recentCourses: coursesRes.data.data || [],
-        recentTeachers: teachersRes.data.data || [],
-      });
+      // Only fetch data based on user role
+      if (user?.role === "admin") {
+        // Admin can see all
+        const [studentsRes, coursesRes, teachersRes] = await Promise.all([
+          api
+            .get("/students?limit=5")
+            .catch(() => ({ data: { pagination: { total: 0 }, data: [] } })),
+          api
+            .get("/courses?limit=5")
+            .catch(() => ({ data: { pagination: { total: 0 }, data: [] } })),
+          api
+            .get("/teachers?limit=5")
+            .catch(() => ({ data: { pagination: { total: 0 }, data: [] } })),
+        ]);
 
-      // Mock recent activity
+        setStats({
+          totalStudents: studentsRes.data.pagination?.total || 0,
+          totalCourses: coursesRes.data.pagination?.total || 0,
+          totalTeachers: teachersRes.data.pagination?.total || 0,
+          recentStudents: studentsRes.data.data || [],
+          recentCourses: coursesRes.data.data || [],
+          recentTeachers: teachersRes.data.data || [],
+        });
+      } else if (user?.role === "teacher") {
+        // Teacher sees their courses and students in those courses
+        const [coursesRes] = await Promise.all([
+          api
+            .get("/courses/my-courses?limit=5")
+            .catch(() => ({ data: { data: [] } })),
+        ]);
+
+        // Calculate total students from courses
+        const totalStudents =
+          coursesRes.data.data?.reduce(
+            (acc, course) => acc + (course.students?.length || 0),
+            0,
+          ) || 0;
+
+        setStats({
+          totalStudents,
+          totalCourses: coursesRes.data.data?.length || 0,
+          totalTeachers: 1, // The teacher themselves
+          recentCourses: coursesRes.data.data || [],
+        });
+      } else if (user?.role === "student") {
+        // Student sees their enrolled courses
+        const [coursesRes] = await Promise.all([
+          api.get("/courses?limit=5").catch(() => ({ data: { data: [] } })),
+        ]);
+
+        setStats({
+          totalStudents: 1, // The student themselves
+          totalCourses: coursesRes.data.data?.length || 0,
+          totalTeachers:
+            coursesRes.data.data?.reduce(
+              (acc, course) => acc + (course.teacher ? 1 : 0),
+              0,
+            ) || 0,
+          recentCourses: coursesRes.data.data || [],
+        });
+      } else if (user?.role === "parent") {
+        // Parent sees their children's data
+        setStats({
+          totalStudents: 2,
+          totalCourses: 5,
+          totalTeachers: 3,
+        });
+      }
+
       setRecentActivity([
         {
           id: 1,
-          user: "John Doe",
-          action: "Submitted assignment",
-          time: "2 minutes ago",
-        },
-        {
-          id: 2,
-          user: "Jane Smith",
-          action: "Marked attendance",
-          time: "15 minutes ago",
-        },
-        {
-          id: 3,
-          user: "Admin",
-          action: "Added new course",
-          time: "1 hour ago",
-        },
-        {
-          id: 4,
-          user: "Robert Johnson",
-          action: "Updated profile",
-          time: "2 hours ago",
-        },
-        {
-          id: 5,
-          user: "Sarah Williams",
-          action: "Sent message",
-          time: "3 hours ago",
+          user: "System",
+          action: "Welcome to the dashboard",
+          time: "just now",
         },
       ]);
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
+
+      if (error.response?.status !== 403) {
+        console.error("Unexpected error:", error);
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.role]);
 
-  const fetchTeachers = async () => {
-    try {
-      const response = await api.get("/teachers?limit=100");
-      setTeachers(response.data.data || []);
-    } catch (error) {
-      console.error("Error fetching teachers:", error);
+  useEffect(() => {
+    fetchDashboardData();
+  }, [fetchDashboardData]);
+
+  // Fetch teachers for admin
+  const fetchTeachers = useCallback(async () => {
+    if (user?.role === "admin") {
+      try {
+        const response = await api.get("/teachers?limit=100");
+        setTeachers(response.data.data || []);
+      } catch (error) {
+        console.error("Error fetching teachers:", error);
+      }
     }
-  };
+  }, [user?.role]);
 
-  // Handle Add Student
+  useEffect(() => {
+    fetchTeachers();
+  }, [fetchTeachers]);
+
+  // Handle Add Student in Dashboard
   const handleAddStudent = async () => {
     try {
       setSubmitting(true);
@@ -177,37 +227,50 @@ const Dashboard = () => {
         return;
       }
 
-      // Create a unique username from email (add timestamp to ensure uniqueness)
+      if (!studentForm.classGrade) {
+        setError("Please select year of study");
+        setSubmitting(false);
+        return;
+      }
+
+      // Create a unique username
       const baseUsername = studentForm.email.split("@")[0];
       const uniqueUsername = `${baseUsername}_${Date.now()}`;
 
-      // First create user account
+      // Create user account FIRST
       const userResponse = await api.post("/auth/register", {
-        username: uniqueUsername, // Use unique username
+        username: uniqueUsername,
         email: studentForm.email,
-        password: "student123", // Default password
+        password: "student123",
         role: "student",
+      });
+
+      if (!userResponse.data.success) {
+        throw new Error(userResponse.data.message || "Failed to create user");
+      }
+
+      // THEN create student profile
+      const studentData = {
+        userId: userResponse.data.user.id,
         firstName: studentForm.firstName,
         lastName: studentForm.lastName,
         phone: studentForm.phone,
         classGrade: studentForm.classGrade,
-        section: studentForm.section,
         gender: studentForm.gender,
         dateOfBirth: studentForm.dateOfBirth || new Date(),
-      });
+      };
 
-      if (userResponse.data.success) {
-        setSuccess(`Student added successfully! Default password: student123`);
-        setShowStudentModal(false);
-        resetStudentForm();
-        fetchDashboardData(); // Refresh stats
-      }
+      await api.post("/students", studentData);
+
+      setSuccess("Student added successfully! Default password: student123");
+      setShowStudentModal(false);
+      resetStudentForm();
+      fetchDashboardData();
 
       setTimeout(() => setSuccess(""), 3000);
     } catch (err) {
       console.error("Error adding student:", err);
 
-      // Handle specific error messages
       if (err.response?.data?.message) {
         setError(err.response.data.message);
       } else {
@@ -493,7 +556,21 @@ const Dashboard = () => {
             <Card className="shadow-sm chart-card">
               <Card.Body>
                 <Card.Title>Student Growth</Card.Title>
-                <Bar data={barData} options={{ responsive: true }} />
+                <div style={{ height: "300px", position: "relative" }}>
+                  <Bar
+                    key={`bar-${JSON.stringify(barData)}`} // Add this key
+                    data={barData}
+                    options={{
+                      responsive: true,
+                      maintainAspectRatio: false,
+                      plugins: {
+                        legend: {
+                          position: "top",
+                        },
+                      },
+                    }}
+                  />
+                </div>
               </Card.Body>
             </Card>
           </Col>
@@ -501,7 +578,16 @@ const Dashboard = () => {
             <Card className="shadow-sm chart-card">
               <Card.Body>
                 <Card.Title>Student Status</Card.Title>
-                <Pie data={pieData} options={{ responsive: true }} />
+                <div style={{ height: "300px", position: "relative" }}>
+                  <Pie
+                    key={`pie-${JSON.stringify(pieData)}`} // Add this key
+                    data={pieData}
+                    options={{
+                      responsive: true,
+                      maintainAspectRatio: false,
+                    }}
+                  />
+                </div>
               </Card.Body>
             </Card>
           </Col>
@@ -664,21 +750,21 @@ const Dashboard = () => {
                   <Form.Group className="mb-3">
                     <Form.Label>Year of Study *</Form.Label>
                     <Form.Select
-                      value={studentForm.yearOfStudy}
+                      value={studentForm.classGrade}
                       onChange={(e) =>
                         setStudentForm({
                           ...studentForm,
-                          yearOfStudy: e.target.value,
+                          classGrade: e.target.value,
                         })
                       }
                       required
                     >
                       <option value="">Select Year</option>
-                      <option value="1">Year 1</option>
-                      <option value="2">Year 2</option>
-                      <option value="3">Year 3</option>
-                      <option value="4">Year 4</option>
-                      <option value="5">Year 5</option>
+                      <option value="">Select Year</option>
+                      <option value="First Year">First Year</option>
+                      <option value="Second Year">Second Year</option>
+                      <option value="Third Year">Third Year</option>
+                      <option value="Fourth Year">Fourth Year</option>
                     </Form.Select>
                   </Form.Group>
                 </Col>
@@ -1150,7 +1236,16 @@ const Dashboard = () => {
             <Card className="shadow-sm">
               <Card.Body>
                 <Card.Title>Class Performance Trend</Card.Title>
-                <Line data={lineData} options={{ responsive: true }} />
+                <div style={{ height: "300px", position: "relative" }}>
+                  <Line
+                    key={`line-${JSON.stringify(lineData)}`} // Add this key
+                    data={lineData}
+                    options={{
+                      responsive: true,
+                      maintainAspectRatio: false,
+                    }}
+                  />
+                </div>
               </Card.Body>
             </Card>
           </Col>

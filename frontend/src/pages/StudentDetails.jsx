@@ -94,6 +94,7 @@ const StudentDetails = () => {
     };
     return <Badge bg={statusMap[status] || "secondary"}>{status}</Badge>;
   };
+  console.log(getStatusBadge);
 
   if (loading) {
     return (
@@ -173,10 +174,7 @@ const StudentDetails = () => {
                   {student.firstName?.[0]}
                   {student.lastName?.[0]}
                 </div>
-                <h5 className="mt-3">
-                  {student.classGrade} - {student.section}
-                </h5>
-                {getStatusBadge(student.status)}
+                <h5 className="mt-3">{student.classGrade}</h5>
               </div>
 
               <hr />
