@@ -9,22 +9,19 @@ const SocketProvider = ({ children }) => {
   const socketRef = useRef(null);
   const { isAuthenticated, token, user } = useAuth();
 
-  // 👇 PLACE THIS HERE - Debug auth state changes
   useEffect(() => {
-    console.log("Auth state changed:", {
-      isAuthenticated,
-      token: token ? "exists" : "none",
-    });
-  }, [isAuthenticated, token]);
-
-  // Initialize socket connection
-  useEffect(() => {
-    if (!isAuthenticated || !token) {
+    // Clean up function
+    const cleanup = () => {
       if (socketRef.current) {
         socketRef.current.removeAllListeners();
         socketRef.current.disconnect();
         socketRef.current = null;
       }
+    };
+
+    if (!isAuthenticated || !token) {
+      cleanup();
+
       return;
     }
 
@@ -45,12 +42,22 @@ const SocketProvider = ({ children }) => {
 
     socketRef.current = socketInstance;
 
-    // 👇 THESE EVENT HANDLERS GO HERE - Inside the useEffect, after creating socketInstance
-    socketInstance.on("connect", () => {
-      console.log("✅ Connected to socket server with ID:", socketInstance.id);
-      setIsConnected(true);
-      setSocketId(socketInstance.id);
-      socketInstance.emit("authenticate", token);
+    // Event handlers - these set state
+    // socketInstance.on("connect", () => {
+    //   console.log("✅ Connected to socket server with ID:", socketInstance.id);
+    //   setIsConnected(true);
+    //   setSocketId(socketInstance.id);
+    //   socketInstance.emit("authenticate", token);
+    // });
+
+    socketInstance.on("connect_error", (error) => {
+      console.error("❌ Socket connection error details:", {
+        message: error.message,
+        description: error.description,
+        context: error.context,
+      });
+      setIsConnected(false);
+      setSocketId(null);
     });
 
     socketInstance.on("authenticated", (data) => {
@@ -59,9 +66,17 @@ const SocketProvider = ({ children }) => {
           "✅ Socket authenticated successfully for user:",
           user?.email,
         );
+        setIsConnected(true);
       } else {
-        console.log("❌ Socket authentication failed:", data.error);
+        console.log("Socket authentication failed:", data.error);
+        setIsConnected(false);
       }
+    });
+
+    socketInstance.on("disconnect", (reason) => {
+      console.log("Disconnected from socket server:", reason);
+      setIsConnected(false);
+      setSocketId(null);
     });
 
     socketInstance.on("connect_error", (error) => {
@@ -70,31 +85,11 @@ const SocketProvider = ({ children }) => {
       setSocketId(null);
     });
 
-    socketInstance.on("disconnect", (reason) => {
-      console.log("❌ Disconnected from socket server. Reason:", reason);
-      setIsConnected(false);
-      setSocketId(null);
-    });
-
     // Cleanup function
     return () => {
-      console.log("🧹 Cleaning up socket connection");
-      if (socketRef.current) {
-        socketRef.current.removeAllListeners();
-        socketRef.current.disconnect();
-        socketRef.current = null;
-      }
+      cleanup();
     };
   }, [isAuthenticated, token, user?.email]);
-
-  // Separate effect to handle authentication state changes
-  useEffect(() => {
-    if (!isAuthenticated && socketRef.current) {
-      socketRef.current.removeAllListeners();
-      socketRef.current.disconnect();
-      socketRef.current = null;
-    }
-  }, [isAuthenticated]);
 
   const emit = useCallback(
     (event, data, callback) => {
