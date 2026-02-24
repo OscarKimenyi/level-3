@@ -118,7 +118,7 @@ const Sidebar = ({ isOpen, closeSidebar, isMobile }) => {
         <div className="mt-auto w-100">
           <div className="text-center text-muted small mt-4">
             <div>
-              Role:{" "}
+              Role:
               <span className="text-info text-uppercase">{user?.role}</span>
             </div>
             <div className="mt-2">v1.0.0</div>
