@@ -254,7 +254,7 @@ const StudentProfile = () => {
                         </Form.Group>
 
                         <Form.Group className="mb-3">
-                          <Form.Label>Class/Grade</Form.Label>
+                          <Form.Label>Year of Study</Form.Label>
                           <Form.Control
                             type="text"
                             name="classGrade"
@@ -291,8 +291,7 @@ const StudentProfile = () => {
                           <strong>Phone:</strong> {student?.phone}
                         </p>
                         <p>
-                          <strong>Class/Grade:</strong> {student?.classGrade} -{" "}
-                          {student?.section}
+                          <strong>year of Study:</strong> {student?.classGrade}
                         </p>
                         <p>
                           <strong>Date of Birth:</strong>{" "}
