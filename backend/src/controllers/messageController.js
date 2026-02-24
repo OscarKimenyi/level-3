@@ -32,6 +32,16 @@ const getConversation = async (req, res) => {
     const { userId } = req.params;
     const currentUserId = req.user._id;
 
+    // Validate that userId is a valid ObjectId
+    if (!userId || userId === "[object Object]") {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid user ID",
+      });
+    }
+
+    console.log("Getting conversation between:", currentUserId, "and", userId);
+
     const messages = await Message.find({
       $or: [
         { sender: currentUserId, receiver: userId },
@@ -48,6 +58,7 @@ const getConversation = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to get conversation",
+      error: error.message,
     });
   }
 };
