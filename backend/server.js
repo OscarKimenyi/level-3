@@ -15,16 +15,11 @@ const assignmentRoutes = require("./src/routes/assignmentRoutes");
 const { authenticateSocket } = require("./src/middleware/authMiddleware");
 const notificationRoutes = require("./src/routes/notificationRoutes");
 const messageRoutes = require("./src/routes/messageRoutes");
+const dashboardRoutes = require("./src/routes/dashboardRoutes");
 
 // Initialize app
 const app = express();
 const server = http.createServer(app);
-const io = socketio(server, {
-  cors: {
-    origin: process.env.FRONTEND_URL,
-    credentials: true,
-  },
-});
 
 // Connect to Database
 connectDB();
@@ -50,11 +45,27 @@ app.use("/api/courses", courseRoutes);
 app.use("/api/attendance", attendanceRoutes);
 app.use("/api/assignments", assignmentRoutes);
 app.use("/api/notifications", notificationRoutes);
-app.use("/api/messages", messageRoutes);
+app.use("/api/dashboard", dashboardRoutes);
+
+app.use(
+  "/api/messages",
+  (req, res, next) => {
+    console.log("Message route hit:", req.method, req.url);
+    next();
+  },
+  messageRoutes,
+);
 
 // Root route
 app.get("/", (req, res) => {
   res.json({ message: "Student Management System API" });
+});
+
+const io = socketio(server, {
+  cors: {
+    origin: process.env.FRONTEND_URL || "http://localhost:5173",
+    credentials: true,
+  },
 });
 
 // Make io accessible to routes
@@ -70,26 +81,27 @@ io.on("connection", (socket) => {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       socket.userId = decoded.userId;
       socket.join(decoded.userId.toString());
+      console.log(`User ${decoded.userId} authenticated for socket`);
       socket.emit("authenticated", { success: true });
     } catch (error) {
+      console.log("Socket authentication failed:", error.message);
       socket.emit("authenticated", { success: false });
     }
   });
 
   socket.on("send_message", (data) => {
-    const { receiverId, message } = data;
-    io.to(receiverId.toString()).emit("receive_message", {
+    console.log(`📨 Message from ${socket.userId} to ${data.receiverId}`);
+    io.to(data.receiverId.toString()).emit("receive_message", {
       senderId: socket.userId,
-      message,
+      message: data.message,
       timestamp: new Date(),
     });
   });
 
   socket.on("typing", (data) => {
-    const { receiverId, isTyping } = data;
-    io.to(receiverId.toString()).emit("user_typing", {
+    io.to(data.receiverId.toString()).emit("user_typing", {
       userId: socket.userId,
-      isTyping,
+      isTyping: data.isTyping,
     });
   });
 
