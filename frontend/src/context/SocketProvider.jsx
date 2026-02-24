@@ -8,37 +8,35 @@ const SocketProvider = ({ children }) => {
   const [socketId, setSocketId] = useState(null);
   const socketRef = useRef(null);
   const { isAuthenticated, token, user } = useAuth();
-  const reconnectAttempts = useRef(0);
+
+  // 👇 PLACE THIS HERE - Debug auth state changes
+  useEffect(() => {
+    console.log("Auth state changed:", {
+      isAuthenticated,
+      token: token ? "exists" : "none",
+    });
+  }, [isAuthenticated, token]);
 
   // Initialize socket connection
-  const connectSocket = useCallback(() => {
+  useEffect(() => {
     if (!isAuthenticated || !token) {
-      console.log("🔌 Not authenticated, skipping socket connection");
-      console.log("Auth state:", isAuthenticated);
-      console.log("Token exists:", !!token);
+      if (socketRef.current) {
+        socketRef.current.removeAllListeners();
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
       return;
     }
 
-    // Clean up existing socket
-    if (socketRef.current) {
-      console.log("🧹 Cleaning up existing socket");
-      socketRef.current.removeAllListeners();
-      socketRef.current.disconnect();
-      socketRef.current = null;
-    }
-
-    console.log("🔌 Attempting to connect to socket server...");
-
     const SOCKET_URL =
       import.meta.env.VITE_SOCKET_URL || "http://localhost:5000";
-    console.log("📡 Connecting to socket URL:", SOCKET_URL);
 
     const socketInstance = io(SOCKET_URL, {
       withCredentials: true,
       auth: { token },
       transports: ["websocket", "polling"],
       reconnection: true,
-      reconnectionAttempts: 20,
+      reconnectionAttempts: 10,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
       timeout: 20000,
@@ -47,13 +45,11 @@ const SocketProvider = ({ children }) => {
 
     socketRef.current = socketInstance;
 
+    // 👇 THESE EVENT HANDLERS GO HERE - Inside the useEffect, after creating socketInstance
     socketInstance.on("connect", () => {
       console.log("✅ Connected to socket server with ID:", socketInstance.id);
       setIsConnected(true);
       setSocketId(socketInstance.id);
-      reconnectAttempts.current = 0;
-
-      // Authenticate immediately after connection
       socketInstance.emit("authenticate", token);
     });
 
@@ -68,82 +64,38 @@ const SocketProvider = ({ children }) => {
       }
     });
 
-    socketInstance.on("disconnect", (reason) => {
-      console.log("❌ Disconnected from socket server:", reason);
-      setIsConnected(false);
-      setSocketId(null);
-
-      // Try to reconnect if not intentional
-      if (reason === "io server disconnect") {
-        // Reconnect manually if server disconnected
-        setTimeout(() => {
-          if (isAuthenticated) {
-            socketInstance.connect();
-          }
-        }, 1000);
-      }
-    });
-
     socketInstance.on("connect_error", (error) => {
       console.error("Socket connection error:", error.message);
       setIsConnected(false);
       setSocketId(null);
-      reconnectAttempts.current += 1;
     });
 
-    socketInstance.on("reconnect", (attemptNumber) => {
-      console.log(`✅ Reconnected after ${attemptNumber} attempts`);
-      setIsConnected(true);
-      // Re-authenticate after reconnect
-      socketInstance.emit("authenticate", token);
-    });
-
-    socketInstance.on("reconnect_attempt", (attemptNumber) => {
-      console.log(`🔄 Reconnection attempt #${attemptNumber}`);
-    });
-
-    socketInstance.on("reconnect_error", (error) => {
-      console.error("Reconnection error:", error);
-    });
-
-    socketInstance.on("reconnect_failed", () => {
-      console.error("Failed to reconnect");
+    socketInstance.on("disconnect", (reason) => {
+      console.log("❌ Disconnected from socket server. Reason:", reason);
       setIsConnected(false);
+      setSocketId(null);
     });
 
-    return socketInstance;
-  }, [isAuthenticated, token, user?.email]);
-
-  // Connect when authenticated
-  useEffect(() => {
-    let socketInstance;
-
-    if (isAuthenticated && token) {
-      // Small delay to ensure token is properly set
-      const timer = setTimeout(() => {
-        socketInstance = connectSocket();
-      }, 500);
-
-      return () => {
-        clearTimeout(timer);
-        if (socketInstance) {
-          socketInstance.disconnect();
-        }
-      };
-    } else {
-      // Clean up when not authenticated
+    // Cleanup function
+    return () => {
+      console.log("🧹 Cleaning up socket connection");
       if (socketRef.current) {
+        socketRef.current.removeAllListeners();
         socketRef.current.disconnect();
         socketRef.current = null;
       }
-      //setIsConnected(false);
-      //setSocketId(null);
+    };
+  }, [isAuthenticated, token, user?.email]);
+
+  // Separate effect to handle authentication state changes
+  useEffect(() => {
+    if (!isAuthenticated && socketRef.current) {
+      socketRef.current.removeAllListeners();
+      socketRef.current.disconnect();
+      socketRef.current = null;
     }
+  }, [isAuthenticated]);
 
-    return () => {};
-  }, [isAuthenticated, token, connectSocket]);
-
-  // Emit event helper
   const emit = useCallback(
     (event, data, callback) => {
       if (socketRef.current && isConnected) {
@@ -156,7 +108,6 @@ const SocketProvider = ({ children }) => {
     [isConnected],
   );
 
-  // On event helper
   const on = useCallback((event, callback) => {
     if (socketRef.current) {
       socketRef.current.on(event, callback);
@@ -165,7 +116,6 @@ const SocketProvider = ({ children }) => {
     return () => {};
   }, []);
 
-  // Off event helper
   const off = useCallback((event, callback) => {
     if (socketRef.current) {
       socketRef.current.off(event, callback);
