@@ -22,6 +22,12 @@ const Navbar = ({ toggleSidebar }) => {
     localStorage.getItem("darkMode") === "true",
   );
 
+  const cleanUsername = (username) => {
+    if (!username) return "User";
+    // Remove numbers and underscores at the end
+    return username.replace(/[0-9_]+$/, "");
+  };
+
   useEffect(() => {
     // Apply dark mode class to body
     if (darkMode) {
@@ -139,7 +145,7 @@ const Navbar = ({ toggleSidebar }) => {
               <span className="text-white d-flex align-items-center">
                 <i className="bi bi-person-circle me-1 fs-5"></i>
                 <span className="d-none d-md-inline">
-                  {user?.username || "User"}
+                  {cleanUsername(user?.username) || "User"}
                 </span>
               </span>
             }
