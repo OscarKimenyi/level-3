@@ -14,6 +14,7 @@ const attendanceRoutes = require("./src/routes/attendanceRoutes");
 const assignmentRoutes = require("./src/routes/assignmentRoutes");
 const { authenticateSocket } = require("./src/middleware/authMiddleware");
 const notificationRoutes = require("./src/routes/notificationRoutes");
+const messageRoutes = require("./src/routes/messageRoutes");
 
 // Initialize app
 const app = express();
@@ -49,6 +50,7 @@ app.use("/api/courses", courseRoutes);
 app.use("/api/attendance", attendanceRoutes);
 app.use("/api/assignments", assignmentRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/messages", messageRoutes);
 
 // Root route
 app.get("/", (req, res) => {
@@ -62,44 +64,20 @@ app.set("io", io);
 io.on("connection", (socket) => {
   console.log("🔌 New client connected:", socket.id);
 
-  // Authenticate socket
   socket.on("authenticate", (token) => {
     try {
+      const jwt = require("jsonwebtoken");
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       socket.userId = decoded.userId;
-      socket.userRole = decoded.role;
-
-      // Join personal room for direct messages
       socket.join(decoded.userId.toString());
-      console.log(
-        `👤 User ${decoded.userId} joined room: ${decoded.userId.toString()}`,
-      );
-
-      // Join role-based room for broadcasts
-      socket.join(decoded.role);
-
-      console.log(
-        `✅ User ${decoded.userId} (${decoded.role}) authenticated for socket`,
-      );
-      console.log(
-        `   Joined rooms: ${decoded.userId.toString()}, ${decoded.role}`,
-      );
-
-      // Acknowledge authentication
-      socket.emit("authenticated", { success: true, userId: decoded.userId });
+      socket.emit("authenticated", { success: true });
     } catch (error) {
-      console.log("❌ Socket authentication failed:", error.message);
-      socket.emit("authenticated", { success: false, error: error.message });
+      socket.emit("authenticated", { success: false });
     }
   });
 
-  // Handle chat messages
   socket.on("send_message", (data) => {
     const { receiverId, message } = data;
-    console.log(
-      `📨 Message from ${socket.userId} to ${receiverId}: ${message.substring(0, 30)}...`,
-    );
-
     io.to(receiverId.toString()).emit("receive_message", {
       senderId: socket.userId,
       message,
@@ -107,7 +85,6 @@ io.on("connection", (socket) => {
     });
   });
 
-  // Handle typing indicator
   socket.on("typing", (data) => {
     const { receiverId, isTyping } = data;
     io.to(receiverId.toString()).emit("user_typing", {
@@ -116,18 +93,8 @@ io.on("connection", (socket) => {
     });
   });
 
-  // Handle notification read receipt
-  socket.on("notification_read", (data) => {
-    const { notificationId } = data;
-    io.to("admin").emit("notification_read_receipt", {
-      notificationId,
-      userId: socket.userId,
-      timestamp: new Date(),
-    });
-  });
-
   socket.on("disconnect", () => {
-    console.log("🔌 Client disconnected:", socket.id, "User:", socket.userId);
+    console.log("🔌 Client disconnected:", socket.id);
   });
 });
 
