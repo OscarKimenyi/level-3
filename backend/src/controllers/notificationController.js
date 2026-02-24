@@ -174,34 +174,29 @@ const sendNotification = async (req, res) => {
     }
 
     let targetUsers = [];
-    let targetRoom = "";
 
     // Determine recipients
     switch (recipients) {
       case "all":
         targetUsers = await User.find({ isActive: true }).select("_id");
-        targetRoom = "all";
         break;
       case "students":
         targetUsers = await User.find({
           role: "student",
           isActive: true,
         }).select("_id");
-        targetRoom = "student";
         break;
       case "teachers":
         targetUsers = await User.find({
           role: "teacher",
           isActive: true,
         }).select("_id");
-        targetRoom = "teacher";
         break;
       case "parents":
         targetUsers = await User.find({
           role: "parent",
           isActive: true,
         }).select("_id");
-        targetRoom = "parent";
         break;
       default:
         return res.status(400).json({
@@ -235,23 +230,22 @@ const sendNotification = async (req, res) => {
     // Emit real-time notifications via socket.io
     const io = req.app.get("io");
 
-    // Emit to each user individually (more reliable)
+    // Emit to each user individually
     let sentCount = 0;
-    targetUsers.forEach((user) => {
-      const userId = user._id.toString();
+    for (const notification of createdNotifications) {
+      const userId = notification.recipient.toString();
       io.to(userId).emit("new_notification", {
-        _id:
-          createdNotifications.find((n) => n.recipient.toString() === userId)
-            ?._id || Date.now(),
-        title,
-        message,
-        type: type || "info",
-        timestamp: new Date(),
-        link,
+        _id: notification._id,
+        title: notification.title,
+        message: notification.message,
+        type: notification.type,
+        timestamp: notification.createdAt,
+        link: notification.link,
         read: false,
       });
       sentCount++;
-    });
+      console.log(`📨 Emitted notification to user: ${userId}`);
+    }
 
     console.log(`📨 Emitted real-time notifications to ${sentCount} users`);
 
@@ -261,7 +255,7 @@ const sendNotification = async (req, res) => {
       count: targetUsers.length,
     });
   } catch (error) {
-    console.error("Send notification error:", error);
+    console.error("❌ Send notification error:", error);
     res.status(500).json({
       success: false,
       message: "Failed to send notification",

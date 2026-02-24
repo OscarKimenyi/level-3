@@ -121,8 +121,18 @@ const createStudent = async (req, res) => {
   try {
     const studentData = req.body;
 
+    // Validate required fields
+    if (!studentData.userId) {
+      return res.status(400).json({
+        success: false,
+        message: "User ID is required",
+      });
+    }
+
     // Check if user exists
+    const User = require("../models/User");
     const user = await User.findById(studentData.userId);
+
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -137,11 +147,29 @@ const createStudent = async (req, res) => {
     if (existingStudent) {
       return res.status(400).json({
         success: false,
-        message: "Student already exists for this user",
+        message: "This user already has a student profile",
       });
     }
 
-    const student = new Student(studentData);
+    // Set default values if not provided
+    const student = new Student({
+      userId: studentData.userId,
+      firstName: studentData.firstName || user.username,
+      lastName: studentData.lastName || "",
+      phone: studentData.phone || "",
+      classGrade: studentData.classGrade || "First Year",
+      dateOfBirth: studentData.dateOfBirth || new Date(),
+      gender: studentData.gender || "Other",
+      address: studentData.address || "",
+      emergencyContact: studentData.emergencyContact || {
+        name: "",
+        phone: "",
+        relationship: "",
+      },
+      enrollmentDate: new Date(),
+      status: "active",
+    });
+
     await student.save();
 
     // Update user role if not already student

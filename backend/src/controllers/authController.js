@@ -26,7 +26,7 @@ const register = async (req, res) => {
       });
     }
 
-    // Check if email already exists with proper error message
+    // Check if email already exists
     const existingEmail = await User.findOne({ email });
     if (existingEmail) {
       return res.status(400).json({
@@ -55,32 +55,7 @@ const register = async (req, res) => {
     });
 
     await user.save();
-
-    // Create role-specific profile
-    if (role === "student") {
-      const Student = require("../models/Student");
-      const student = new Student({
-        userId: user._id,
-        firstName: additionalData.firstName || username,
-        lastName: additionalData.lastName || "",
-        phone: additionalData.phone || "",
-        classGrade: additionalData.classGrade || "Not specified",
-        dateOfBirth: additionalData.dateOfBirth || new Date(),
-        gender: additionalData.gender || "Other",
-      });
-      await student.save();
-    } else if (role === "teacher") {
-      const Teacher = require("../models/Teacher");
-      const teacher = new Teacher({
-        userId: user._id,
-        firstName: additionalData.firstName || username,
-        lastName: additionalData.lastName || "",
-        qualification: additionalData.qualification || "Not specified",
-        contactNumber: additionalData.phone || "",
-        department: additionalData.department || "General",
-      });
-      await teacher.save();
-    }
+    console.log(`✅ User created: ${user.email} with role: ${user.role}`);
 
     // Generate token
     const jwt = require("jsonwebtoken");

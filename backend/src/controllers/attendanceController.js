@@ -7,31 +7,57 @@ const markAttendance = async (req, res) => {
   try {
     const { course, date, records } = req.body;
 
-    // Find the teacher making the request
-    const teacher = await Teacher.findOne({ userId: req.user._id });
-    if (!teacher) {
-      return res.status(403).json({
+    // Validate required fields
+    if (!course || !date || !records || !Array.isArray(records)) {
+      return res.status(400).json({
         success: false,
-        message: "Only teachers can mark attendance",
+        message: "Course, date, and records array are required",
       });
     }
 
-    // Verify teacher owns this course
-    const courseData = await Course.findById(course);
-    if (
-      !courseData ||
-      courseData.teacher.toString() !== teacher._id.toString()
-    ) {
+    // Find the teacher making the request
+    const Teacher = require("../models/Teacher");
+    const teacher = await Teacher.findOne({ userId: req.user._id });
+
+    // Check if user is admin or teacher
+    const isAdmin = req.user.role === "admin";
+
+    if (!isAdmin && !teacher) {
       return res.status(403).json({
         success: false,
-        message: "You are not authorized to mark attendance for this course",
+        message: "Only teachers and admins can mark attendance",
       });
+    }
+
+    // Verify teacher owns this course (if not admin)
+    if (!isAdmin && teacher) {
+      const Course = require("../models/Course");
+      const courseData = await Course.findById(course);
+      if (!courseData) {
+        return res.status(404).json({
+          success: false,
+          message: "Course not found",
+        });
+      }
+
+      if (courseData.teacher.toString() !== teacher._id.toString()) {
+        return res.status(403).json({
+          success: false,
+          message: "You are not authorized to mark attendance for this course",
+        });
+      }
     }
 
     // Process each attendance record
+    const Attendance = require("../models/Attendance");
     const attendanceRecords = [];
+
     for (const record of records) {
       const { student, status } = record;
+
+      if (!student || !status) {
+        continue; // Skip invalid records
+      }
 
       // Check if attendance already exists for this student/course/date
       let attendance = await Attendance.findOne({
@@ -43,7 +69,7 @@ const markAttendance = async (req, res) => {
       if (attendance) {
         // Update existing
         attendance.status = status;
-        attendance.markedBy = teacher._id;
+        attendance.markedBy = isAdmin ? req.user._id : teacher._id;
         await attendance.save();
       } else {
         // Create new
@@ -52,7 +78,7 @@ const markAttendance = async (req, res) => {
           course,
           date: new Date(date),
           status,
-          markedBy: teacher._id,
+          markedBy: isAdmin ? req.user._id : teacher._id,
         });
         await attendance.save();
       }
