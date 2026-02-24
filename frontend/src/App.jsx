@@ -21,6 +21,9 @@ import ResetPassword from "./pages/ResetPassword";
 // Dashboard Pages
 import Dashboard from "./pages/Dashboard";
 
+// Admin Page
+import AdminProfile from "./pages/AdminProfile";
+
 // Student Pages
 import Students from "./pages/Students";
 import StudentProfile from "./pages/StudentProfile";
@@ -73,6 +76,7 @@ function App() {
                 />
                 <Route path="/dashboard" element={<Dashboard />} />
 
+                <Route path="/profile/admin" element={<AdminProfile />} />
                 {/* Student Routes */}
                 <Route path="/students" element={<Students />} />
                 <Route path="/students/:id" element={<StudentDetails />} />
