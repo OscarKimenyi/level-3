@@ -112,13 +112,25 @@ const getTeacherProfile = async (req, res) => {
   }
 };
 
-// Create new teacher
+// Create new teacher - FIX THIS FUNCTION
 const createTeacher = async (req, res) => {
   try {
     const teacherData = req.body;
 
+    console.log("Received teacher creation request:", teacherData);
+
+    // Validate required fields
+    if (!teacherData.userId) {
+      return res.status(400).json({
+        success: false,
+        message: "User ID is required",
+      });
+    }
+
     // Check if user exists
+    const User = require("../models/User");
     const user = await User.findById(teacherData.userId);
+
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -137,7 +149,31 @@ const createTeacher = async (req, res) => {
       });
     }
 
-    const teacher = new Teacher(teacherData);
+    // Process specialization if it's a string
+    let specialization = teacherData.specialization || [];
+    if (typeof specialization === "string") {
+      specialization = specialization
+        .split(",")
+        .map((s) => s.trim())
+        .filter((s) => s);
+    }
+
+    // Set default values if not provided
+    const teacher = new Teacher({
+      userId: teacherData.userId,
+      firstName: teacherData.firstName || user.username,
+      lastName: teacherData.lastName || "",
+      qualification: teacherData.qualification || "Not specified",
+      specialization: specialization,
+      joiningDate: teacherData.joiningDate || new Date(),
+      assignedCourses: teacherData.assignedCourses || [],
+      contactNumber: teacherData.contactNumber || "",
+      department: teacherData.department || "General",
+      status: teacherData.status || "active",
+    });
+
+    console.log("Saving teacher:", teacher);
+
     await teacher.save();
 
     // Update user role if not already teacher
@@ -145,6 +181,8 @@ const createTeacher = async (req, res) => {
       user.role = "teacher";
       await user.save();
     }
+
+    console.log("Teacher created successfully:", teacher._id);
 
     res.status(201).json({
       success: true,
