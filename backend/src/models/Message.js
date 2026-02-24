@@ -35,8 +35,7 @@ const messageSchema = new mongoose.Schema(
   },
 );
 
-// Generate conversation ID - FIXED VERSION
-messageSchema.pre("save", function () {
+messageSchema.pre("save", function (next) {
   if (!this.conversationId) {
     const participants = [
       this.sender.toString(),
@@ -44,6 +43,7 @@ messageSchema.pre("save", function () {
     ].sort();
     this.conversationId = participants.join("_");
   }
+  next();
 });
 
 module.exports = mongoose.model("Message", messageSchema);
