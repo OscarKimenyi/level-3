@@ -18,18 +18,35 @@ const notificationRoutes = require("./src/routes/notificationRoutes");
 const messageRoutes = require("./src/routes/messageRoutes");
 const dashboardRoutes = require("./src/routes/dashboardRoutes");
 
+// Import createAdmin function
+const createAdmin = require("./createAdmin");
+
 // Initialize app
 const app = express();
 const server = http.createServer(app);
 
-// Connect to Database
-connectDB();
+// Connect to Database and initialize admin
+connectDB().then(async () => {
+  console.log("✅ Database connected");
+
+  try {
+    await createAdmin(); // Create admin if not exists
+  } catch (err) {
+    console.error("⚠️ Failed to create admin:", err.message);
+  }
+
+  // Start server after DB and admin are ready
+  const PORT = process.env.PORT || 5000;
+  server.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+    console.log(`📡 WebSocket server ready`);
+  });
+});
 
 // Middleware
 app.use(helmet());
 app.use(
   cors({
-    //origin: process.env.FRONTEND_URL || "http://localhost:5173",
     origin: process.env.CLIENT_URL,
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
@@ -64,6 +81,7 @@ app.get("/", (req, res) => {
   res.json({ message: "Student Management System API" });
 });
 
+// Socket.io setup
 const io = socketio(server, {
   cors: {
     origin: process.env.FRONTEND_URL || "http://localhost:5173",
@@ -75,7 +93,7 @@ const io = socketio(server, {
 // Make io accessible to routes
 app.set("io", io);
 
-// Socket.io Connection
+// Socket.io connection
 io.on("connection", (socket) => {
   console.log("🔌 New client connected:", socket.id);
 
@@ -112,11 +130,4 @@ io.on("connection", (socket) => {
   socket.on("disconnect", () => {
     console.log("🔌 Client disconnected:", socket.id);
   });
-});
-
-// Start server
-const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📡 WebSocket server ready`);
 });
