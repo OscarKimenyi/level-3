@@ -1,12 +1,8 @@
-require("dotenv").config();
-const mongoose = require("mongoose");
+// createAdmin.js
 const User = require("./src/models/User");
 
 const createAdmin = async () => {
   try {
-    await mongoose.connect(process.env.MONGODB_URI);
-    console.log("Connected to MongoDB");
-
     // Check if admin already exists
     const existingAdmin = await User.findOne({ email: "admin@school.com" });
 
@@ -14,7 +10,7 @@ const createAdmin = async () => {
       console.log("Admin user already exists");
       console.log("Email: admin@school.com");
       console.log("Password: admin123");
-      process.exit(0);
+      return;
     }
 
     // Create admin user
@@ -31,13 +27,10 @@ const createAdmin = async () => {
     console.log("Admin user created successfully!");
     console.log("Email: admin@school.com");
     console.log("Password: admin123");
-    console.log("CHANGE THIS PASSWORD AFTER FIRST LOGIN!");
-
-    process.exit(0);
+    console.log("⚠️ CHANGE THIS PASSWORD AFTER FIRST LOGIN!");
   } catch (error) {
     console.error("Error creating admin:", error);
-    process.exit(1);
   }
 };
 
-createAdmin();
+module.exports = createAdmin;
