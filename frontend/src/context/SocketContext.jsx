@@ -1,45 +1,36 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
-import { io } from "socket.io-client";
-import { useAuth } from "./AuthContext";
-
-const SocketContext = createContext(null);
-
-export const useSocket = () => useContext(SocketContext);
+import { useEffect, useRef, useState } from "react";
+import io from "socket.io-client";
+import SocketContext from "./SocketContextObject";
 
 export const SocketProvider = ({ children }) => {
+  const socketRef = useRef(null);
   const [socket, setSocket] = useState(null);
-  const { user, token } = useAuth();
+  const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
-    if (token && !socket) {
-      const newSocket = io(import.meta.env.VITE_SOCKET_URL, {
-        withCredentials: true,
-        auth: { token },
-      });
+    const newSocket = io("https://level-3-backend.onrender.com");
 
-      newSocket.on("connect", () => {
-        console.log("Connected to socket server");
-        newSocket.emit("authenticate", token);
-      });
+    socketRef.current = newSocket;
 
-      newSocket.on("disconnect", () => {
-        console.log("Disconnected from socket server");
-      });
-
+    newSocket.on("connect", () => {
       setSocket(newSocket);
+      setIsConnected(true);
+      console.log("Socket connected");
+    });
 
-      return () => {
-        newSocket.close();
-      };
-    }
-  }, [token, socket]);
+    newSocket.on("disconnect", () => {
+      setIsConnected(false);
+      console.log("Socket disconnected");
+    });
 
-  const value = {
-    socket,
-    isConnected: socket?.connected || false,
-  };
+    return () => {
+      newSocket.disconnect();
+    };
+  }, []);
 
   return (
-    <SocketContext.Provider value={value}>{children}</SocketContext.Provider>
+    <SocketContext.Provider value={{ socket, isConnected }}>
+      {children}
+    </SocketContext.Provider>
   );
 };
