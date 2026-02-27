@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from "react";
-import axios from "axios";
+import axios from "../api/axios";
 import api from "../../../frontend/src/api/axios";
 
 const AuthContext = createContext({});
@@ -61,7 +61,8 @@ export const AuthProvider = ({ children }) => {
   // Register function
   const register = async (userData) => {
     try {
-      const response = await axios.post("/auth/register", userData);
+      const response = await axios.post("/api/auth/register", userData);
+
       const { token, user } = response.data;
 
       localStorage.setItem("token", token);
